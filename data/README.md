@@ -14,10 +14,18 @@ ingest-architecture shakedown. Verified locally rather than trusted from the Log
 | Distinct pids | 27,799 |
 | Levels | INFO 10,812,836 / WARN 362,793 — no ERROR lines |
 
-`HDFS.log`, `HDFS_v1.zip`, and the large preprocessed files (`Event_traces.csv`,
-`Event_occurrence_matrix.csv`, `HDFS.npz`, `anomaly_label.csv`) are not in git.
-They are all over 2 MB. Get the zip from
-[Zenodo 8196385](https://zenodo.org/records/8196385) and unpack it next to this README.
+`HDFS.log` and the large preprocessed files are not in git (over 2 MB). After
+`git clone`, run [`../scripts/init-data.sh`](../scripts/init-data.sh) from the repo
+root, or download the zip yourself:
+
+| | URL |
+| --- | --- |
+| Direct download | https://zenodo.org/records/8196385/files/HDFS_v1.zip?download=1 |
+| Record (checksums, other LogHub sets) | https://zenodo.org/records/8196385 |
+| LogHub table | https://github.com/logpai/loghub |
+
+Unpack next to this README. `HDFS.log` SHA-256 must be
+`0783096174d7832c618337f9609e06e04abd86ddd7089b3c12b407e63bfebc52`.
 
 Every line matches `^[0-9]{6} [0-9]{6} [0-9]+ [A-Z]+ [^:]+: ` with zero exceptions, which is
 what lets the Phase 1A parse transform use `!`-form VRL functions and treat any parse failure
