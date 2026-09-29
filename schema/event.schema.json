@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysbench.local/schemas/hdfs-service-event.json",
+  "title": "HDFS service log event",
+  "description": "One HDFS log line mocked as a production service event. host.name is the instance IP and is the logsdb sort key. It is an empty string when the line does not identify an instance. host.ip is present only then, and equals host.name.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "timestamp",
+    "cluster",
+    "namespace",
+    "app",
+    "pod",
+    "container",
+    "host",
+    "level",
+    "pid",
+    "component",
+    "block_id",
+    "attributes",
+    "body"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC, microsecond precision. HDFS Date+Time has second resolution."
+    },
+    "cluster": {
+      "type": "string"
+    },
+    "namespace": {
+      "type": "string"
+    },
+    "app": {
+      "type": "string",
+      "enum": [
+        "namenode",
+        "datanode"
+      ]
+    },
+    "pod": {
+      "type": "string"
+    },
+    "container": {
+      "type": "string"
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Instance IP. Empty when the line does not identify an instance."
+        },
+        "ip": {
+          "type": "string",
+          "format": "ipv4",
+          "description": "Same value as name, typed as an address."
+        }
+      }
+    },
+    "level": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warn",
+        "error",
+        "debug",
+        "fatal"
+      ]
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "component": {
+      "type": "string"
+    },
+    "block_id": {
+      "type": "string"
+    },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "properties": {
+        "size": {
+          "type": "string"
+        },
+        "peer_ip": {
+          "type": "string"
+        },
+        "instance_port": {
+          "type": "string"
+        }
+      }
+    },
+    "body": {
+      "type": "string"
+    }
+  }
+}

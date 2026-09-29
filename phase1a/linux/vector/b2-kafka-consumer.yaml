@@ -1,0 +1,64 @@
+# Arm B2 (optional) - Kafka with an external Vector consumer instead of ClickHouse's Kafka
+# table engine. Run only if B1 looks promising.
+#
+# Produce with b1-kafka-producer.yaml, then consume with this. Do NOT run the Kafka table
+# engine at the same time: two consumer groups on one topic means both arms ingest the same
+# data and the count gate fails for reasons that have nothing to do with either arm.
+#
+# Why bother: it swaps ClickHouse's at-least-once Kafka engine for an agent that batches like
+# A2 and can be scaled independently of the database. It costs one more process and one more
+# offset-commit story to reason about. If B1 already loses to A4, skip this.
+#
+# This consumer runs on the DRIVER node, not on node-1.
+
+data_dir: /var/lib/vector-consumer
+timezone: UTC
+
+sources:
+  kafka:
+    type: kafka
+    bootstrap_servers: infra:9092
+    topics: [phase1a-hdfs]
+    group_id: vector-phase1a
+    auto_offset_reset: earliest
+    decoding:
+      codec: json
+
+  metrics:
+    type: internal_metrics
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs: [kafka]
+    endpoint: http://node-1:8123
+    database: sysbench
+    table: logs_hdfs
+    format: json_each_row
+    compression: gzip
+    date_time_best_effort: true
+    skip_unknown_fields: false
+    # Matches A2m so the only difference from A2m is Kafka's presence in the path.
+    batch:
+      max_bytes: 10000000
+      timeout_secs: 5
+    buffer:
+      type: memory
+      max_events: 500
+      when_full: block
+    request:
+      concurrency: 4
+      retry_attempts: 10
+      retry_initial_backoff_secs: 1
+      retry_max_duration_secs: 30
+    healthcheck:
+      enabled: true
+
+  prometheus:
+    type: prometheus_exporter
+    inputs: [metrics]
+    address: 0.0.0.0:9599
+
+# No parse transform: the producer already parsed, and Kafka carries JSON. That asymmetry is
+# the point of having the producer do the parsing - reparsing here would charge the same CPU
+# twice and make B2 look worse than it is.

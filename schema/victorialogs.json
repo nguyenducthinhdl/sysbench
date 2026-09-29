@@ -1,0 +1,19 @@
+{
+  "_time": "timestamp",
+  "_msg": "body",
+  "stream_fields": [
+    "cluster",
+    "namespace",
+    "app",
+    "pod"
+  ],
+  "fields": [
+    "host.name",
+    "host.ip",
+    "level",
+    "pid",
+    "component",
+    "block_id",
+    "attributes"
+  ]
+}

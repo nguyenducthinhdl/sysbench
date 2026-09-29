@@ -1,0 +1,93 @@
+# Arm A4 - A2's batching plus a Vector disk buffer.
+#
+# This is the honest alternative to Kafka, and the arm most likely to win: the agent's own
+# disk buffer absorbs a ClickHouse outage without adding a clustered system to operate.
+# It is the arm the D1 drill exists to test.
+#
+# batch.* here must match whichever A2 size won the sweep. It is set to A2m (10 MB / 5s)
+# below; if A2s or A2l wins instead, change it and say so in the result record, because A4
+# is only interpretable as "the winning A2 plus a buffer".
+
+data_dir: /var/lib/vector
+timezone: UTC
+
+sources:
+  hdfs:
+    type: stdin
+    decoding:
+      codec: bytes
+
+  # The canary (driver/canary.sh) enters here rather than being interleaved into stdin, so it
+  # shares the parse transform AND the sink batch with the bulk replay. That is what makes it
+  # measure this arm's visibility latency instead of a side channel.
+  canary:
+    type: socket
+    mode: tcp
+    address: 0.0.0.0:9000
+    decoding:
+      codec: bytes
+
+  metrics:
+    type: internal_metrics
+
+transforms:
+  parse:
+    type: remap
+    inputs: [hdfs, canary]
+    drop_on_error: true
+    reroute_dropped: true
+    source: |
+      . = parse_regex!(.message, r'^(?P<d>\d{6}) (?P<t>\d{6}) (?P<pid>\d+) (?P<level>[A-Z]+) (?P<component>[^:]+): (?P<body>.*)$')
+      . = {
+        "Timestamp": format_timestamp!(parse_timestamp!("20" + .d + " " + .t, "%Y%m%d %H%M%S"), "%Y-%m-%d %H:%M:%S"),
+        "Pid": to_int!(.pid),
+        "Level": .level,
+        "Component": .component,
+        "Body": .body
+      }
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs: [parse]
+    endpoint: http://clickhouse:8123
+    database: sysbench
+    table: logs_hdfs
+    format: json_each_row
+    compression: gzip
+    date_time_best_effort: true
+    skip_unknown_fields: false
+    batch:
+      max_bytes: 10000000
+      timeout_secs: 5
+    buffer:
+      type: disk
+      # 2 GiB, chosen to hold the entire 1.47 GiB corpus. Sized on purpose so the D1 outage
+      # drill tests the buffer's behaviour rather than testing what happens when it fills -
+      # that is a separate question and a separate run with a smaller cap.
+      max_size: 2147483648
+      when_full: block
+    request:
+      concurrency: 4
+      retry_attempts: 10
+      retry_initial_backoff_secs: 1
+      retry_max_duration_secs: 30
+    healthcheck:
+      enabled: true
+
+  parse_failures:
+    type: file
+    inputs: [parse.dropped]
+    path: /var/log/vector/phase1a-parse-failures.log
+    encoding:
+      codec: json
+
+  prometheus:
+    type: prometheus_exporter
+    inputs: [metrics]
+    address: 0.0.0.0:9598
+
+# The disk buffer lives under data_dir on the DRIVER node, so its IO cost is charged to the
+# agent and never to ClickHouse - the same reason Kafka sits on the infra node. Record the
+# driver's disk utilisation during this arm; it is part of A4's true cost and the direct
+# counterpart of Kafka's broker IO in B1.

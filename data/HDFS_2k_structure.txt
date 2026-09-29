@@ -1,0 +1,2 @@
+Date	Time	Pid	Level	Component	Content
+081109	203615	148	INFO	dfs.DataNode$PacketResponder	PacketResponder 1 for block blk_38865049064139660 terminating

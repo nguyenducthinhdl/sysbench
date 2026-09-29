@@ -1,0 +1,87 @@
+# Arm B1 - Vector produces to Kafka; ClickHouse consumes via the Kafka table engine.
+#
+# Vector's half of the arm. The consuming half is clickhouse/kafka-engine.sql, and the
+# batching knobs on that side (kafka_max_block_size, kafka_poll_max_batch_size,
+# kafka_flush_interval_ms) are the real counterpart of the A2 batch settings. Record both
+# halves with the result: B1 is a two-sided configuration and quoting only one is meaningless.
+#
+# Kafka runs on the infra node, never on node-1, so its CPU is a separate line item rather
+# than being charged to ClickHouse.
+#
+# Topic created before the run with a partition count matching kafka_num_consumers = 4:
+#   kafka-topics.sh --create --topic phase1a-hdfs --partitions 4 --replication-factor 1
+#
+# TLS is deliberately OFF here. Kafka cannot use sendfile once TLS is enabled
+# (explanation.md section 3.4), which is a real cost but a constant one - benchmark-plan.md
+# section 4 measures it once as its own line item rather than folding it into every arm.
+
+data_dir: /var/lib/vector
+timezone: UTC
+
+sources:
+  hdfs:
+    type: stdin
+    decoding:
+      codec: bytes
+
+  # The canary (driver/canary.sh) enters here rather than being interleaved into stdin, so it
+  # shares the parse transform AND the producer batch with the bulk replay. For B1 and B2 the
+  # canary therefore measures the FULL path including Kafka, which is the number that matters.
+  canary:
+    type: socket
+    mode: tcp
+    address: 0.0.0.0:9000
+    decoding:
+      codec: bytes
+
+  metrics:
+    type: internal_metrics
+
+transforms:
+  parse:
+    type: remap
+    inputs: [hdfs, canary]
+    drop_on_error: true
+    reroute_dropped: true
+    source: |
+      . = parse_regex!(.message, r'^(?P<d>\d{6}) (?P<t>\d{6}) (?P<pid>\d+) (?P<level>[A-Z]+) (?P<component>[^:]+): (?P<body>.*)$')
+      . = {
+        "Timestamp": format_timestamp!(parse_timestamp!("20" + .d + " " + .t, "%Y%m%d %H%M%S"), "%Y-%m-%d %H:%M:%S"),
+        "Pid": to_int!(.pid),
+        "Level": .level,
+        "Component": .component,
+        "Body": .body
+      }
+
+sinks:
+  kafka:
+    type: kafka
+    inputs: [parse]
+    bootstrap_servers: kafka:9092
+    topic: phase1a-hdfs
+    compression: none
+    encoding:
+      codec: json
+    # Batching is expressed through librdkafka rather than Vector's batch.* block for this
+    # sink. 10 MB / 5 ms mirrors A2m's byte size so the producer side is not accidentally a
+    # different arm; linger is in milliseconds here, not seconds.
+    librdkafka_options:
+      batch.size: "10000000"
+      linger.ms: "5"
+      # acks=all. Anything weaker would let Kafka "win" durability it has not earned, which
+      # is the same fairness rule C3 applies to the engines themselves.
+      acks: "all"
+    healthcheck:
+      enabled: true
+
+  parse_failures:
+    type: file
+    inputs: [parse.dropped]
+    path: /var/log/vector/phase1a-parse-failures.log
+    encoding:
+      codec: json
+
+  prometheus:
+    type: prometheus_exporter
+    inputs: [metrics]
+    address: 0.0.0.0:9598

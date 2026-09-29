@@ -1,0 +1,13 @@
+# Raw LogHub HDFS_v1. Download from https://zenodo.org/records/8196385
+data/HDFS.log
+data/HDFS_v1.zip
+
+# 120 MB; GitHub rejects files over 100 MB. Ships inside HDFS_v1.zip.
+data/preprocessed/Event_traces.csv
+
+__pycache__/
+*.py[cod]
+
+# Runtime output from a local Vector run
+phase1a/macos/logs/*.log
+!phase1a/macos/logs/.gitignore

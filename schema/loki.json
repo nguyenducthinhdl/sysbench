@@ -1,0 +1,11 @@
+{
+  "description": "Baseline arm. Stream labels are the service identity only. The instance IP stays in the JSON line as host.name, not a label.",
+  "stream_labels": [
+    "cluster",
+    "namespace",
+    "app",
+    "pod"
+  ],
+  "structured_metadata": [],
+  "line": "full JSON event"
+}

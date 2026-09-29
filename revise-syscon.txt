@@ -1,0 +1,531 @@
+Meeting 20 Sept -- REVISED 21 Sept
+Source: syscon.txt (raw note, unchanged)
+Why each line changed: explanation.md
+Benchmark design: benchmark-plan.md
+
+Legend
+  [D]     Decision taken. Do not re-litigate without new evidence.
+  [M]     Settled by measurement. Owner runs it, number goes in the handbook.
+  [Q:xx]  Open question, owner xx. Needs an answer before the phase that depends on it.
+  [!]     Claim from the original note that was wrong or obsolete. Corrected here.
+
+
+================================================================================
+PART 1 -- LOGWAR: CHOOSING A LOGGING ENGINE
+================================================================================
+
+Candidates: Elasticsearch 9.x, Grafana Loki 3.5, ClickHouse 26.x, VictoriaLogs.
+
+## 1.0 What we are actually deciding
+
+[D] Two things, in this order:
+      1. Which engine(s) we run for logs over the next ~2 years.
+      2. Whether we need a tiered design (cheap bulk tier + indexed tier) or one engine.
+[D] Deliverable is the decision handbook (notebook/logging-decision-handbook.md).
+    The benchmark exists to put numbers in it, not the other way round.
+[D] Feature gate first, benchmark second. This keeps the meeting's conclusion
+    ("supported feature matters more than benchmark") while still producing evidence
+    for the decisions that cost money later: sizing, retention tiers, HA multiplier.
+
+## 1.1 The first four criteria, ranked
+
+  C1  Search semantics and correctness  -- can it express our queries, identically?
+  C2  Query performance per unit of hardware -- latency AND CPU-seconds AND bytes scanned
+  C3  Ingest cost and durability, normalized -- throughput per core at EQUAL durability
+  C4  Aggregation and alerting -- cost of a continuously evaluated rule, not yes/no
+
+  C5  Operability and TCO -- scored, not measured (component count, config surface,
+      HA hardware multiplier, per-tenant query quotas)
+
+[D] C1 is a gate. An engine that cannot express a required query is out, regardless
+    of how fast it is at the queries it can express.
+[D] C3 is normalized on durability. Without that, an engine with no replication wins
+    throughput for free. See 1.5.
+
+## 1.2 Full-text search: "unordered search (a b = b a)"
+
+[!] The original note treats this as one comparable operation across four engines.
+    It is not. Loki's `|=` is SUBSTRING matching; Elasticsearch `match` with
+    operator:and, ClickHouse hasAllTokens() and VictoriaLogs word filters are all
+    TOKEN matching. Searching "abc" finds the line "traceabc=1" under substring
+    matching and misses it under token matching.
+
+[D] This is the single biggest methodological risk in the whole exercise. Phase 0
+    pins ONE semantic per query, expresses it per engine, and asserts identical
+    result counts on a 5GB slice before any timing is recorded. Where an engine
+    cannot express the pinned semantic with index support, that is reported as a
+    capability gap, not as a slow latency number.
+[Q:all] Which semantic does our on-call actually need -- substring (finds partial
+    tokens, no tokenizer surprises) or token (indexable, much faster)? This decides
+    whether Loki is measured at its idiomatic best or forced into an unnatural shape.
+
+### Elasticsearch
+  - Strongest prior for ad-hoc full-text and log exploration. [M] confirm or deny.
+  - Real strength: you do not need to know in advance which part to search.
+  - [!] "Elastic = expensive" is stale. logsdb index mode is GA and DEFAULT for new
+    logs-*-* data streams since 9.0: host-first sort + synthetic _source + ZSTD +
+    TSDB codecs. Elastic reports ~60% storage reduction conservatively, up to 76-77%
+    with synthetic _source, for a 10-20% indexing penalty.
+  - [D] Benchmark ES WITH logsdb and host-first sort order (host.name, @timestamp).
+    Sort order carries most of the benefit: host-first up to ~40%, timestamp-first
+    under 10%. Testing without logsdb would be benchmarking a 2023 product.
+
+### Loki
+  - [!] Not stateless. Ingesters hold in-memory chunks + WAL; only the read path is
+    near-stateless. Unflushed data is lost if an ingester dies without WAL replay or
+    flush_on_shutdown. S3 as final storage does not change that.
+  - [D] Baseline model is "scan all chunks matching the stream selector". Correct.
+  - [!] Bloom filters will NOT rescue free-text search. Since Loki 3.3 blooms index
+    STRUCTURED METADATA, not free text (breaking change, block schema V3). Still
+    experimental in self-managed Loki; in Cloud it is a preview for tenants above
+    75TB/month. Acceleration also only applies to structured-metadata filters placed
+    BEFORE any parser stage.
+  - [D] Loki's headline number runs without blooms. A second, clearly labelled arm
+    moves needle terms into structured metadata + enables blooms, to quantify what
+    changing the ingestion pipeline would buy. Never blend the two numbers.
+  - Tag indexing via Promtail / Alloy / OTel collector. Which labels exist is decided
+    in the shipper, upstream of every query. See 1.4.
+
+### ClickHouse
+  - [!] The note's open question "structure vs unstructure log?" is now answered, and
+    the proposal to drop CH from logwar is withdrawn:
+      * JSON type: production-ready since 25.3. Splits documents into per-path
+        subcolumns. Watch max_dynamic_paths (default 1024, keep < ~10k) or paths
+        overflow into a slower shared file.
+      * Text (inverted) index: GA in 26.2, no special setting needed. Tokenizers
+        splitByNonAlpha / splitByString / ngrams / sparseGrams / asciiCJK / icu /
+        array. Unordered AND is exactly hasAllTokens(body, ['a','b']).
+  - [D] Pin ClickHouse >= 26.2. On 25.x the text index is beta behind
+    enable_full_text_index=1 and we would be publishing a number for a beta feature.
+  - [D] Schema follows ClickStack guidance: typed columns for stable fields,
+    Map(LowCardinality(String), String) for attributes, JSON only for genuinely
+    unpredictable sub-structures. ClickStack's own JSON-schema support is still beta.
+  - [!] Trap: the text index is SILENTLY skipped when whole tokens cannot be
+    extracted. LIKE '%term%' full-scans. A tokenizer mismatch between query and index
+    also disables it, with no error.
+  - [D] Every ClickHouse query in the suite carries an `EXPLAIN indexes=1` proof that
+    the index was used. Without it the numbers are meaningless.
+  - Strongest argument for CH is ThangPham's (line 100 of the raw note): if we
+    already run CH in production, we avoid standing up another system. That lowers
+    C5 cost more than any query optimisation.
+    [Q:ThangPham] Is there a production CH cluster we can genuinely reuse -- spare
+    capacity, same team, acceptable blast radius? This materially changes CH's TCO.
+
+### VictoriaLogs
+  - [!] "Weak data persistence / could be lost data" is not quite right, and the real
+    problem is worse than "weak availability":
+      * vlstorage DOES persist durably to local disk (-storageDataPath), compresses,
+        merges, enforces retention.
+      * vlinsert SHARDS without replicating, by design, for linear scalability and
+        query pushdown. Maintainers have confirmed in-cluster replication is not
+        supported and not planned.
+      * So a downed vlstorage node = its shard is UNQUERYABLE. Writes survive
+        (vlinsert redistributes to healthy nodes). It is a read availability hole,
+        not silent loss of new data.
+      * Supported HA = 2+ INDEPENDENT clusters, mirrored by vlagent with repeated
+        -remoteWrite.url, each URL with its own on-disk buffer
+        (-remoteWrite.tmpDataPath, capped by -remoteWrite.maxDiskUsagePerURL),
+        reads behind vmauth or any HTTP LB.
+  - [D] This is a pricing fact, not a footnote: HA means running it twice. If VL wins
+    efficiency by 30% but needs 2x hardware for HA, it loses. Its tier-2 topology in
+    C3 is two clusters, and the double ingest CPU is charged to VL, not hidden.
+
+## 1.3 Why fast, what is the trade-off, which scenario fits which engine
+
+[D] Every result must come with a mechanism, otherwise the handbook cannot generalise
+    beyond the exact hardware we tested on. Minimum per engine: what does it index,
+    what does it scan, where does the CPU go, what does it read off disk or network.
+[D] Report CPU-seconds and bytes-scanned per query alongside wall time. Wall time
+    does not transfer to different hardware; cost per query does.
+
+## 1.4 Schema is upstream of everything
+
+[D] Confirmed and elevated: for Loki and VictoriaLogs the cheap queries are decided
+    by shipper config; for ES by the index template; for CH by the DDL. A wrong choice
+    is expensive to undo in all four.
+[D] The corpus ships ONE fixed label/field mapping used identically by all four
+    engines (corpus-spec.md). Otherwise we benchmark four schema decisions, not four
+    engines.
+
+## 1.5 Write throughput and back pressure
+
+[!] "Do we need to care?" -- yes, for two reasons the note does not give:
+      1. It sets the hardware floor, and therefore the bill.
+      2. Back-pressure behaviour at saturation is an incident-severity question. An
+         engine that sheds load predictably (429s, shipper lag) is operationally very
+         different from one that stalls shippers or OOMs.
+[M] Throughput per core AT EQUAL DURABILITY, plus documented behaviour past the knee.
+[D] Two durability tiers, every engine reported in both:
+      T1  single copy, no redundancy
+      T2  survives the loss of one node
+    T2 topologies: ES 1 primary + 1 replica; Loki replication_factor=3 ingesters;
+    CH ReplicatedMergeTree x2 + Keeper; VictoriaLogs = two independent clusters.
+
+## 1.6 Aggregation and alerting
+
+[!] "Loki: grep ... not easy to do" is wrong. The Loki ruler evaluates LogQL
+    recording and alerting rules natively. The 100-errors/minute alert is one line:
+        sum(rate({app="payments"} |= "error" [1m])) > 100
+    All four support this. They differ by roughly an order of magnitude in COST:
+      Loki  -- ruler rescans the window every evaluation
+      ES    -- Kibana alerting rule / transform / ES|QL, index-backed, cheap
+      VL    -- LogsQL stats + vmalert, scan-based but fast
+      CH    -- incremental materialized view + external scheduler. Cheapest steady
+               state of the four: the alert query reads a tiny pre-aggregated table.
+               Nothing else here does continuous aggregation that cheaply.
+[M] C4 measures rule evaluation CPU and detection delay under continuous ingest,
+    not a supported/not-supported table.
+
+### Scenario 3 (NEW): gradual drift -- payment rejection 2% -> 6%
+
+[D] Added because no query in the original suite could express it, and it is a real
+    failure mode: a rate degrading slowly over days while traffic follows its normal
+    diurnal curve.
+[!] The trap: because traffic varies more than the defect rate does, the ABSOLUTE
+    count of rejections is NOT monotonic -- it falls overnight while the rate climbs.
+    Any alert built on rejection count both MISSES this incident and FIRES SPURIOUSLY
+    at the next traffic peak. The query must compute a ratio.
+[D] Cost spread here is much wider than for Scenario 1:
+      CH  -- countIf(...) / count(), single pass. Home turf.
+      VL  -- conditional stats + math pipe, single pass.
+      ES  -- date_histogram + filters agg + bucket_script. Index-backed, cheap per
+             bucket, three layers to express one idea.
+      Loki -- two count_over_time aggregations divided, so it scans the window TWICE
+             per evaluation step. Compounds badly as a standing rule.
+[D] Promoted to a REQUIRED query class (Q14). An engine that cannot do ratio-over-time
+    affordably cannot serve our alerting needs, regardless of search speed.
+
+### Scenario 4 (NEW): investigation, not queries
+
+[D] "System dumping" -- a crash cascade where connection errors spike, the cause is an
+    OOM upstream, and the symptom appears first in a DOWNSTREAM caller. Tests
+    something no single-query benchmark can: can an engineer pivot from symptom to
+    cause? Measured as time-to-answer across a fixed 7-step sequence (Q15), run twice
+    per engine, once by an expert and once by a non-expert. The gap between those two
+    is a C5 input and is often larger than any latency difference in the suite.
+[D] This is the concrete version of the note's original instinct about log exploration
+    -- "if we don't know which part to search in future" -- which was otherwise
+    untested.
+
+## 1.6b Ground truth: planted incidents
+
+[D] The corpus now contains SIX planted incidents with known onset, shape, blast radius
+    and cause (corpus-spec.md section 7):
+      INC-1 correlated crash cascade   (sharp spike + causal pivot)
+      INC-2 gradual ratio drift        (2% -> 6% over 48h)
+      INC-3 single-pod outlier         (1 of 50 pods; invisible in service aggregate)
+      INC-4 silent failure             (logging stops; absence IS the signal)
+      INC-5 novel log shape            (no needle, no error level; needs pattern
+                                        detection)
+      INC-6 latency degradation        (p95 doubles, error count flat)
+[D] Why it matters: detection delay against a KNOWN onset is a real number. Detection
+    delay against "when we noticed in production" is not. INC-4 and INC-5 are the
+    classes rule-based alerting misses structurally, not by mistuning.
+[D] Cost: the generator needs a small service dependency graph so INC-1 can produce
+    causally ordered downstream failures. Accepted; incident count capped at six to
+    keep it tractable.
+
+## 1.7 Real-time search: the argument was backwards
+
+[!] Both halves of the note need correcting:
+      * ES is NEAR real time, not real time. A document is searchable at the next
+        refresh (index.refresh_interval, default 1s). Only GET-by-id is realtime.
+      * A SYNCHRONOUS ClickHouse INSERT is atomically visible as soon as it is acked
+        -- in principle lower visibility latency than ES's refresh cycle. Observed
+        delay comes from client-side batching or async_insert without
+        wait_for_async_insert=1. That is a pipeline choice, not an engine limit.
+    The mechanics in the note were right (MergeTree writes parts to disk, Lucene
+    buffers in RAM + translog); the inference drawn from them was not.
+[M] Stop arguing from architecture. Measure ingest-to-visible latency p50/p99 on all
+    four with a timestamped canary, at the batching config we would actually run.
+
+## 1.8 Retention tiers
+
+[!] "Within 1 day -> Elastic (expensive); beyond 1 day -> Loki" is a reasonable
+    heuristic with no measurement behind it, and one of its inputs (ES storage cost)
+    is stale by 2-4x since logsdb.
+[M] The crossover point is an OUTPUT of phase 2: cost per GB per day of retention
+    against p95 latency per query class. It goes in the handbook as a table.
+
+
+================================================================================
+PART 2 -- STORAGE ENGINE AND STORAGE MEDIA
+================================================================================
+
+## 2.1 Object storage (Loki's final tier): is S3 too slow?
+
+    Original disagreement: DungTrung expects object storage to be slow vs internal
+    disk, bounded by network throughput. TungDam counters that fetches are
+    parallelised across clusters/nodes and aggregated, so the impact is small, and
+    that a 10GB query does not need to read all 10GB.
+
+[D] Both positions are plausible and neither was tested. Stop debating it.
+    Context worth keeping: on-prem MinIO/Ceph over 25GbE can deliver multiple GB/s
+    aggregate, and Loki fans chunk fetches across queriers, so the binding constraint
+    is usually per-query fan-out concurrency and object-store request rate / TTFB
+    rather than raw link bandwidth. TungDam is also right in principle that the
+    stream selector and time range prune chunks before download -- but HOW MUCH gets
+    pruned is exactly what differs between engines.
+[M] Phase 3 runs Loki twice, identical in every other respect: once against MinIO,
+    once against a local filesystem store. Record bytes fetched, object-store request
+    count, p99 TTFB per query. The delta is the answer.
+
+## 2.2 ClickHouse partitioning -- not sharding
+
+[!] "CH sharding: by default is day" conflates two mechanisms and states a default
+    that does not exist:
+      * Sharding = horizontal distribution across nodes (Distributed tables). Nothing
+        to do with time.
+      * Partitioning = PARTITION BY within one table. MergeTree has NO default
+        partitioning; omit the clause and you get a single partition.
+      * Day granularity comes from the OTel/ClickStack convention
+        PARTITION BY toDate(Timestamp), which exists so retention can drop whole
+        partitions instead of running row-level TTL mutations.
+[D] Our DDL states PARTITION BY toDate(...) explicitly.
+[M] Retention cost (drop-partition vs TTL merge) is a measured line item.
+
+## 2.3 VictoriaLogs storage
+
+[D] Confirmed (ThangPham): no cross-cluster read path, so HA requires double write
+    and a read-side load balancer. This is the direct consequence of 1.2 and is
+    already priced into C3.
+
+## 2.4 Storage tiering (hot / warm / cold)
+
+[D] OUT OF SCOPE for round 1. Every candidate has a version of it -- ES ILM,
+    ClickHouse storage policies with move_factor, Loki via bucket lifecycle rules,
+    VictoriaLogs via retention and disk-usage caps -- and including it multiplies the
+    test matrix.
+[D] Round 1 is single hot tier for all four, so the numbers stay comparable. Tiering
+    is a round-2 question once we know which engine we are tuning.
+    [Q:DungTrung] What is the real access pattern beyond 7 days? If it is near zero,
+    cold tiering matters more than anything in C2 and we should revisit early.
+
+
+================================================================================
+PART 3 -- LOG LAYER DESIGN
+================================================================================
+
+## 3.1 Tiered design: File Store -> Loki -> Elastic?
+
+[D] A real and common pattern (cheap bulk tier + selective indexed tier), but the
+    note states it as a question and omits the cost. Two shapes, not equivalent:
+      Dual-write  -- everything to both, index a subset. Simple, expensive.
+      Promotion   -- bulk only, copy into the indexed tier on demand or by rule.
+                     Cheaper, adds latency and a moving part.
+[D] Decision trigger, quantitative: what percentage of log volume needs INDEXED
+    search within 24h? Below roughly 10-20%, a tiered design wins. Above it, one
+    well-tuned engine is simpler and cheaper.
+    [Q:ThangPham] Get that percentage from the log owners. This is a product
+    question, not a rig question, and it gates the whole architecture.
+
+## 3.2 Personal-scale vs 500-engineer scale
+
+[D] Keep ThangPham's framing as an explicit requirement, because it changes the
+    answer: multi-tenancy, per-team isolation, per-tenant quotas and a self-serve
+    onboarding path are requirements at 500 engineers and irrelevant at 1.
+    See also 4.5 -- agents make this harder, not easier.
+
+## 3.3 Kafka in front of Loki
+
+    Original claims, individually assessed:
+
+[D] 1. Kafka ingestion exists -- CONFIRMED, but EXPERIMENTAL. It is
+       ingester.kafka_ingestion.enabled plus a partition ring and a top-level
+       kafka_config block explicitly marked category:"experimental". It is tied to
+       the new dataobj V2 path: Kafka records buffered, sorted, flushed as columnar
+       "THOR" objects to object storage, with TSDB indexes built by a separate
+       background consumer. Loki 3.4 was still adding the Kafka dev environment.
+[!] 2. "10x write throughput" -- UNVERIFIED. No documented general claim. Removed
+       from this note; do not repeat it as fact in a decision record.
+[!] 3. "Deduplication before saving to S3 across 3 clusters" -- NOT a Loki feature.
+       Loki has no cross-cluster dedupe (nothing like Thanos/Mimir HA-replica
+       dedupe). Mirroring to three clusters gives three copies, and "accept
+       duplicate" then becomes an unsolved query-time correctness problem.
+       [Q:TungDam] Design spike needed before this appears in any architecture
+       diagram.
+[D] 4. "Read within 3 hours -> local, else S3" -- CONFIRMED, and it has a name:
+       queriers consult ingesters for recent data within query_ingesters_within
+       (default 3h) and object storage beyond it. Good instinct, now documented.
+
+[D] Baseline Loki arm = stable 3.5, TSDB / schema v13, object storage. Kafka +
+    dataobj is an optional clearly-labelled experimental arm: interesting to look at,
+    not a basis for a production decision this quarter.
+
+## 3.4 "Loki design is too complicated" (DungTrung)
+
+[D] Confirmed as a legitimate operational concern -- and it is about to get sharper.
+    Announced 2026-08-24, targeted at self-managed Loki v4.0.0:
+      * Simple Scalable Deployment is REMOVED. Loki 4.0 will not run in SSD mode;
+        move to distributed microservices or HA monolithic.
+      * Thanos object storage clients become the DEFAULT (-use-thanos-objstore=true),
+        aligning Loki with Mimir.
+      * Legacy multi-store backends REMOVED: Cassandra, DynamoDB, BoltDB for indexes,
+        BigTable, gRPC store. Loki 4.0 fails to start if they are referenced.
+[D] Therefore: benchmark DISTRIBUTED mode. Choosing SSD would put us on a removed
+    topology. And score component count + configuration surface explicitly under C5,
+    so "too complicated" becomes a number we can weigh against throughput instead of
+    a matter of taste.
+
+## 3.5 Kafka, TLS and zero copy
+
+[D] First half of the note CONFIRMED: Kafka's sendfile path is only used by
+    PlaintextTransportLayer. SslTransportLayer.transferFrom() reads into a buffer,
+    calls sslEngine.wrap(), then writes to the socket -- FileChannel.transferTo() is
+    never called. Kafka's own docs say in-kernel SSL_sendfile is not supported and
+    sendfile is not used when SSL is enabled (KAFKA-13799). Page cache still helps;
+    the zero-copy socket path does not.
+[!] Proposed fix is WRONG for Kafka. The nginx trick is kTLS and does not carry over:
+    there is no broker switch for kTLS, NIC TLS offload or TLS_TX_ZEROCOPY_RO on the
+    file-backed Fetch path, and the JVM SSLEngine path has no kTLS integration.
+    Stock Kafka enables none of it.
+[D] Treat broker TLS CPU as a fixed cost to MEASURE ONCE (TLS on vs off, CPU per
+    MB/s) and then budget. If the overhead is unacceptable the levers are terminating
+    mTLS at a sidecar, or plaintext inside a trusted L2 domain -- a policy decision,
+    not a tuning one.
+[D] Because the PREVIOUS benchmark was distorted by this, the number goes in the
+    report so nobody rediscovers it next quarter.
+
+
+================================================================================
+PART 4 -- AI AGENTS
+================================================================================
+
+Need (unchanged from the note): many agents cooperating on problems over massive
+private data.
+
+## 4.1 The security model: network is the wrong axis
+
+[!] "On-Prem: can not limit by network" is wrong as stated. NetworkPolicy, Cilium
+    identity-based policy, SPIFFE/SPIRE workload identity with mTLS, and service-mesh
+    L7 authorization all work on-prem. TungDam's Envoy proposal is the right shape;
+    ThinhNguyen's resource tagging is the right self-serve mechanism.
+
+[D] But the real problem is different and more fundamental: NETWORK IDENTITY IS NOT
+    USER IDENTITY. An agent acting on behalf of an engineer needs a delegated,
+    per-request identity so authorization can be computed as
+        (what this human may do) INTERSECT (what this task needs)
+    No IP allowlist, node-level grant or L4 policy can express that.
+[!] "1 node contains many Agents, we need just open for node" is exactly the wrong
+    granularity -- it makes every agent on that node equally privileged. Rejected.
+[D] Architecture: workload identity per agent instance + delegated short-lived
+    credentials, with an L7 proxy (Envoy) as the enforcement point and a policy engine
+    (OPA / Cedar) as the decision point.
+
+## 4.2 Making 1000 agents tractable
+
+[D] The scaling answer is not more policies, it is a different unit of identity.
+    Each agent instance is a non-human identity with an owner, a scope, a TTL and an
+    approval path. Then 1000 agents are not 1000 policy objects -- they are 500
+    humans' entitlements projected through short-lived, narrowed tokens.
+    Three rules make it work:
+      1. An agent is NEVER broader than its owner.
+      2. Credentials live minutes, not months.
+      3. Every action is attributable to (agent, owner, task).
+
+## 4.3 The Grafana example: 100 clusters, 100 teams
+
+[D] Real problem, and the implied answer is the wrong one. Minting long-lived Grafana
+    service-account tokens per agent across 100 clusters is secret sprawl with no
+    revocation story.
+[D] Pattern instead: a token broker. The agent presents its workload identity, the
+    broker validates the delegation chain and mints a short-lived scoped Grafana SA
+    token on demand. Or Grafana sits behind the same authenticating proxy as
+    everything else and never issues agent tokens at all.
+    "Y"'s instinct to lock down from the resource side is right -- it just needs to be
+    resource-side AUTHORIZATION, not client-side lockdown.
+    [Q:TungDam] Do we already have an OIDC-capable identity provider we can hang a
+    token broker off, or is that net-new work?
+
+## 4.4 Opening our data to agents
+
+[D] Requirements, not aspirations: every agent-facing data API needs per-request
+    identity (4.1), per-tenant quotas (4.5), a full audit trail, and a defined
+    human-in-the-loop boundary.
+[D] Human-in-the-loop boundary: agents may READ and PROPOSE freely within scope;
+    any WRITE, any production mutation and any cross-tenant read requires human
+    approval. Define it once, centrally, at the proxy -- not per agent.
+
+## 4.5 NEW -- agents will be our most expensive query client
+
+    Not in the original note, and it connects the two halves of this meeting.
+
+[D] A thousand agents issuing exploratory log queries is a load pattern no human
+    population produces: wide time ranges, unselective filters, automatic retries.
+    Whichever engine we pick MUST support per-tenant query quotas and limits, or the
+    first enthusiastic agent rollout becomes an outage.
+      Loki -- per-tenant limits; ES -- search throttling + circuit breakers;
+      CH -- quotas + settings profiles; VL -- concurrency and resource limits.
+[D] Added as a hard requirement under C5, and it is the reason the logging decision
+    should PRECEDE the agent platform work rather than run parallel to it.
+
+## 4.6 Agent platform and efficiency tooling
+
+[D] Keep from the note, all sound:
+      - ThangPham: run agents on K8s, not laptops -- survives closing the laptop and
+        makes persona/skills reusable and reviewable.
+      - TungDam: expose the agent platform as an MCP server rather than building a
+        bespoke client.
+      - Infra to start an agent with (persona, skills, resource permissions) as one
+        declarative object -- which is also the thing 4.2 attaches identity to.
+    [Q:ThinhNguyen] What do we count as the success metric? "Tasks done per year" is
+    easy to game; prefer something like reviewed-and-merged agent changes, or
+    incidents triaged without a human paged.
+
+## 4.7 LLM outlier detection vs hard rules
+
+[D] TungDam's razor -- if you can detect the outlier well, you understand it well
+    enough to write the rule -- is good and true for most recurring alerts. It is not
+    universally true. It fails where the rule is expressible but not MAINTAINABLE
+    (thousands of services with drifting baselines), and where the signal is a novel
+    log SHAPE rather than a threshold crossing.
+    DungTrung's lower-false-alarm claim is plausible and unproven. ThangPham's
+    night-shift triage example is the strongest concrete case, because it targets the
+    expensive human step rather than the detection step.
+[D] Division of labour: deterministic rules PAGE; LLMs triage, summarize, correlate
+    and propose; humans approve actions.
+[M] Make it measurable, two ways, and we now have both:
+      1. CONTROLLED: score static thresholds, anomaly rules and an LLM against the six
+         planted incidents (1.6b), which have known onsets. INC-2 is the decisive case
+         -- no static threshold handles a 2% -> 6% drift well, since 3% pages on noise
+         and 5% means we have been degrading for a day. INC-4 (silent failure) and
+         INC-5 (novel shape) are the ones hard rules miss structurally.
+      2. REALITY CHECK: replay one month of historical alerts and compare
+         precision/recall against the existing rule set.
+    Both reuse the log corpus, so this is nearly free once the rig exists.
+[!] Caveat that must survive into any summary: planted incidents are SYNTHETIC. A
+    strong LLM result on them is weaker evidence than a strong result on real history.
+    Do not let the clean controlled number stand alone.
+
+
+================================================================================
+PART 5 -- WHAT HAPPENS NEXT
+================================================================================
+
+[D] Revised conclusion of logwar. The meeting said "benchmark is not too important vs
+    supported feature and build notebook recommendation". Agreed on ORDERING, not on
+    de-prioritising. The decisions that hurt us later are all quantitative: hardware
+    sizing, retention tiers, the HA hardware multiplier, whether Kafka is needed in
+    front. A recommendation notebook with no numbers underneath it is an opinion.
+
+    Phase 0  Feature gate, 5GB slice, ~2 days. C1 only. Prove identical result sets
+             and prove index usage. Survivors proceed.
+    Phase 1  Ingest 500GB per engine at both durability tiers.
+    Phase 2  Query suite, 1/10/50 concurrency, cold and warm, under fixed background
+             ingest.
+    Phase 3  Failure drills + the object-storage isolation arm (2.1).
+    Phase 4  Write the handbook.
+
+    Full method, rig and fairness rules: benchmark-plan.md
+
+[D] Open questions blocking work, consolidated:
+      Q:all          substring or token search semantics (1.2) -- blocks Phase 0
+      Q:ThangPham    % of volume needing indexed search within 24h (3.1) -- blocks
+                     the tiered-vs-single architecture decision
+      Q:ThangPham    reusable production ClickHouse cluster? (1.2) -- changes CH TCO
+      Q:DungTrung    access pattern beyond 7 days (2.4) -- may promote tiering
+      Q:TungDam      cross-cluster dedupe design spike (3.3)
+      Q:TungDam      existing OIDC provider for the token broker (4.3)
+      Q:ThinhNguyen  agent platform success metric (4.6)
+      Q:infra        retention + daily ingest volume, and K8s vs bare-metal systemd
+                     for the SUT -- blocks rig build and the real hardware bill

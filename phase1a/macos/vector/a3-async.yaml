@@ -1,0 +1,94 @@
+# Arm A3 - server-side batching via ClickHouse async_insert.
+#
+# Vector deliberately sends SMALL batches here (1 MB / 1s, same as A2s) and lets ClickHouse
+# coalesce them. The comparison against A2s is the whole point: identical agent-side
+# batching, one arm batching in the agent and one in the server.
+#
+# The sub-arm is selected by which user Vector authenticates as, because Vector's clickhouse
+# sink cannot set async_insert itself. Run clickhouse/async-insert.sql first, then:
+#
+#   PHASE1A_CH_USER=phase1a_async_w1 vector --config a3-async.yaml   # durable ack
+#   PHASE1A_CH_USER=phase1a_async_w0 vector --config a3-async.yaml   # fire and forget
+#
+# This file is byte-identical between the two sub-arms by design. The differing settings are
+# recorded in async-insert.sql and in the result record's non_default_config.
+
+data_dir: /var/lib/vector
+timezone: UTC
+
+sources:
+  hdfs:
+    type: stdin
+    decoding:
+      codec: bytes
+
+  # The canary (driver/canary.sh) enters here rather than being interleaved into stdin, so it
+  # shares the parse transform AND the sink batch with the bulk replay. That is what makes it
+  # measure this arm's visibility latency instead of a side channel.
+  canary:
+    type: socket
+    mode: tcp
+    address: 0.0.0.0:9000
+    decoding:
+      codec: bytes
+
+  metrics:
+    type: internal_metrics
+
+transforms:
+  parse:
+    type: remap
+    inputs: [hdfs, canary]
+    drop_on_error: true
+    reroute_dropped: true
+    source: |
+      . = parse_regex!(.message, r'^(?P<d>\d{6}) (?P<t>\d{6}) (?P<pid>\d+) (?P<level>[A-Z]+) (?P<component>[^:]+): (?P<body>.*)$')
+      . = {
+        "Timestamp": format_timestamp!(parse_timestamp!("20" + .d + " " + .t, "%Y%m%d %H%M%S"), "%Y-%m-%d %H:%M:%S"),
+        "Pid": to_int!(.pid),
+        "Level": .level,
+        "Component": .component,
+        "Body": .body
+      }
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs: [parse]
+    endpoint: http://clickhouse:8123
+    database: sysbench
+    table: logs_hdfs
+    format: json_each_row
+    compression: gzip
+    date_time_best_effort: true
+    skip_unknown_fields: false
+    auth:
+      strategy: basic
+      user: ${PHASE1A_CH_USER}
+      password: ""
+    batch:
+      max_bytes: 1000000
+      timeout_secs: 1
+    buffer:
+      type: memory
+      max_events: 500
+      when_full: block
+    request:
+      concurrency: 4
+      retry_attempts: 10
+      retry_initial_backoff_secs: 1
+      retry_max_duration_secs: 30
+    healthcheck:
+      enabled: true
+
+  parse_failures:
+    type: file
+    inputs: [parse.dropped]
+    path: /var/log/vector/phase1a-parse-failures.log
+    encoding:
+      codec: json
+
+  prometheus:
+    type: prometheus_exporter
+    inputs: [metrics]
+    address: 0.0.0.0:9598

@@ -1,0 +1,10 @@
+<clickhouse>
+    <!-- The image's default user cannot CREATE USER. A3 needs that, because async_insert
+         is attached to a user rather than to Vector's insert. Merged with the image's
+         existing default-user definition. -->
+    <users>
+        <default>
+            <access_management>1</access_management>
+        </default>
+    </users>
+</clickhouse>

@@ -1,0 +1,90 @@
+# Arm A1 - no batching. One INSERT per event.
+#
+# Expected to collapse into TOO_MANY_PARTS well before the file ends. Capped by the driver
+# at 10 minutes or 200,000 events, whichever comes first, and reported as "events accepted
+# before first failure" plus the parts count at that moment. Do not wait for it to finish.
+#
+# This arm exists so the cost of not batching is a number instead of an assertion.
+
+data_dir: /var/lib/vector
+timezone: UTC
+
+sources:
+  hdfs:
+    type: stdin
+    decoding:
+      codec: bytes
+
+  # The canary (driver/canary.sh) enters here rather than being interleaved into stdin, so it
+  # shares the parse transform AND the sink batch with the bulk replay. That is what makes it
+  # measure this arm's visibility latency instead of a side channel.
+  canary:
+    type: socket
+    mode: tcp
+    address: 0.0.0.0:9000
+    decoding:
+      codec: bytes
+
+  metrics:
+    type: internal_metrics
+
+transforms:
+  parse:
+    type: remap
+    inputs: [hdfs, canary]
+    drop_on_error: true
+    reroute_dropped: true
+    source: |
+      . = parse_regex!(.message, r'^(?P<d>\d{6}) (?P<t>\d{6}) (?P<pid>\d+) (?P<level>[A-Z]+) (?P<component>[^:]+): (?P<body>.*)$')
+      . = {
+        "Timestamp": format_timestamp!(parse_timestamp!("20" + .d + " " + .t, "%Y%m%d %H%M%S"), "%Y-%m-%d %H:%M:%S"),
+        "Pid": to_int!(.pid),
+        "Level": .level,
+        "Component": .component,
+        "Body": .body
+      }
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs: [parse]
+    endpoint: http://clickhouse:8123
+    database: sysbench
+    table: logs_hdfs
+    format: json_each_row
+    compression: gzip
+    date_time_best_effort: true
+    # false so ClickHouse rejects an unexpected field instead of silently discarding it.
+    skip_unknown_fields: false
+    batch:
+      # The whole point of this arm.
+      max_events: 1
+      timeout_secs: 1
+    buffer:
+      type: memory
+      max_events: 500
+      # block, never drop: the count gate in the phase doc requires exactly 11,175,629 rows,
+      # so backpressure must propagate to stdin rather than being absorbed by discarding.
+      when_full: block
+    request:
+      # Pinned rather than adaptive, so the arms differ in batching and nothing else.
+      concurrency: 4
+      retry_attempts: 10
+      retry_initial_backoff_secs: 1
+      retry_max_duration_secs: 30
+    healthcheck:
+      enabled: true
+
+  # Parse failures are written out, never dropped silently. All 11,175,629 lines were
+  # verified against the regex above, so a non-empty file here means the input changed.
+  parse_failures:
+    type: file
+    inputs: [parse.dropped]
+    path: /var/log/vector/phase1a-parse-failures.log
+    encoding:
+      codec: json
+
+  prometheus:
+    type: prometheus_exporter
+    inputs: [metrics]
+    address: 0.0.0.0:9598

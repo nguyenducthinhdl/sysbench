@@ -1,0 +1,147 @@
+Meeting 20 Sept:
+
+# Logwar Testing benchmark for Logging
+
+## Compare Fulltext search (unordered search: a b = b a)
+- Elastic search (expect best) 
+    - Luxury feature: Log exploration
+        - If we don't know which part to seatch in future
+    - Tag indexing: Depend on ingestion pipelines for indexing like K8s tags
+- Loki (StateLess because of S3 as final storage)
+    - Scan all 
+        - Good if you know which part to search
+    - Tag indexing:
+        - Have plugin Graphana ..., Promtail, PromtD
+- CH
+    - structure vs unstructure log?
+- Victoria:
+    - TungDam:Weak Data persistence (replica, Sharding)?
+        - Could be lost data
+        - Weak Availability
+    - VM Storage
+
+- Why fast, trade-off, mechanism?
+- Which scenario to fit with each DBs?
+- Care: Storage? (S3 http, other format ....)
+
+## Storage Engine
+
+CH:
+- Efficiency, Perf
+
+S3 (Final Storage on Loki):
+- dynamical tier (low frequency, hot frequency), cold storage
+- Trunk Download?
+    - DungTrung: S3 is expectly slow? vs Internal Disk, be limited by network throughput
+        - TungDam: S3 downloaded from multiple clusters, nodes and Aggreated ==> not too much impact
+        - DungTrung: Case 10GB loading on CH
+        - TungDam: No need to read all 10GB
+
+VM Storage:
+    - ThangPham: No communication between clusters (can not get data from another clusters)
+    - Double write
+
+## Log Layer Design
+ThangPham:
+File Store --> Loki --> Elastic ?
+
+ThangPham:
+- Log for personal vs 500 engineers?
+
+TungDam:
+- Loki: Kafka for decoupling read, write and balance workload
+    - Write to kafka before saving to S3
+    - 10x : write throughput for Loki, column database for some metadata, query engine (moving conditions before grep data)
+    - 3 clusters:
+        + deduplication before saving on S3: accept duplicate
+    - if read within 3 hours --> read on local else S3
+    - DungTrung: Design of Loki is too complicated
+
+VLog:
+- ThangPham: Should check between VLog vs CH or VM Storage
+
+ThangPham:
+- Sometime Kafka has no Zero copy --> Impact to the last benchmark: Because of TLS and mTLS enabled (tls located on userspace for encryption)
+    - Can not use send file feature
+    - Can solve by sharing session key in Nginx case
+
+## Aggreation Feature
+
+### Scenario 1 (Recoding Rules): Alert 100 error / minutes
+- Loki: grep ... Need to process, not easy to do    
+- Elastic: Good, supported    
+- How?
+
+### Scenario 2: Search depend on usecases
+- Search within 1 day: --> Elastic Search (Expensive)
+- Search > 1 day: --> Loki, ...
+- structure vs unstructure log
+- analyse log: TTL
+CH:
+    - sharding: by default is day
+- Need to understand which strong points to server many requirements
+
+## Write throughput?
+- DungTrung: Do we need to care
+- Back pressure
+
+## Pros and Cons
+- TungDam: priotizie on benchmark
+
+## Conlusion of logwar
+- benchmark is not to much important vs supported feature and build notebook recommendation
+- benchmark:
+    - common baseline
+    - ingest throughput, write throughtput?
+    - Ex: Loki: 200GB, 1 query vs 10 query, ... ==> Find bottleneck (CPU, network, RAM ...)
+    - CH:
+        - Why push log to CH? because CH is write intensive and we need to put kafka in front of CH ==> Analytic because of biz (they can not predict which field to analyse)?
+            - DungTrung: Do we need to ignore CH for logwar?
+            - ThangPham: If we have got existing CH ==> Leverage CH for logging
+        - DungTrung: compare with Elastic Search about real-time search even using LSM together
+            - CH writing is good by batching --> delay time for searching, high performance while writing manytimes (realtime)
+            - We can search real-time on ES
+        - X: CH is designed for 1, ES
+        - benchmark recommendation: batching, read-time writing on ES (write to mem table), CH (CH write directly to disk), need to verify
+
+# AI Topics
+
+Need: A lot of Agent communicates together for solving problem on massive private data.
+
+## Security
+- How to narrow down the Agent permision?
+    - Ex: Log access, build gateway for Agent?
+    - Run on specific VPC:
+    - TungDam: L7 Proxy like Envoy (control AI Agent accessing permision): 
+        - PR by developers
+        - ThangPham: Problem: 500 engineers vs 1000 Agents ==> security model scaling
+            - On-Prem: Can not limit by network
+        - TungDam: 1 node contains many Agents, we need just open for node
+        - ThinhNguyen: Self-serve by resource taging
+        - Y: 2 Problems:
+            - Agent Self-serve platform
+    - Exam: 100 Grapha Cluster of 100 teams, user's permission on Graphana cluster (read, write, ...), how to manage the Agent Permisson seemly?
+        - Graphana have to crate service account token, how to manage these tokens?
+        - Can not isolate by network
+        - Need Auth Server: 
+        - MCP control:
+        - Y: Lockdown by Client (EC2, ..), prevent from resource side
+
+## How to open correctly our data resource for Agent?
+- Log, data, ....
+- Develop Agent Service to communicate with other Agent?
+- Human in the loop, which human action?
+
+## Efficiency tools for AI era?
+- Share Vision, Experience: 
+- Platform to manage Agent:
+    - AI persona
+    - ...
+    - Infra to start Agent with (persona, skills, ... , resource accessing permision)
+    - Ex: How many task done task in 1 year?
+    - TungDam: Just use Claude Connector and connect to MCP server of Agent Platform?
+    - ThangPham: It's run automatically on K8s ==> it still work even closing laptop, and help to build skills, persona
+    - LLM can do the outlier detection vs hard rule:
+        - Tungdam: if you can do well outlier detection ==> you can know to to use hard rule to do it 
+        - DungTrung: have posibility to use LLM better than hard rules, false alarm could be small 
+        - ThangPham: Ex, Agent alert and analyse like strange alarm and replace human checking on mid night

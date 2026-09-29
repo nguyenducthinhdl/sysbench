@@ -1,0 +1,88 @@
+{
+  "index_template": {
+    "name": "logs-hdfs",
+    "index_patterns": [
+      "logs-hdfs-*"
+    ],
+    "data_stream": {},
+    "priority": 500,
+    "template": {
+      "settings": {
+        "index.mode": "logsdb",
+        "index.sort.field": [
+          "host.name",
+          "@timestamp"
+        ],
+        "index.sort.order": [
+          "asc",
+          "desc"
+        ]
+      },
+      "mappings": {
+        "properties": {
+          "@timestamp": {
+            "type": "date_nanos"
+          },
+          "timestamp": {
+            "type": "date_nanos"
+          },
+          "cluster": {
+            "type": "keyword"
+          },
+          "namespace": {
+            "type": "keyword"
+          },
+          "app": {
+            "type": "keyword"
+          },
+          "pod": {
+            "type": "keyword"
+          },
+          "container": {
+            "type": "keyword"
+          },
+          "host": {
+            "properties": {
+              "name": {
+                "type": "keyword"
+              },
+              "ip": {
+                "type": "ip"
+              }
+            }
+          },
+          "level": {
+            "type": "keyword"
+          },
+          "pid": {
+            "type": "integer"
+          },
+          "component": {
+            "type": "keyword"
+          },
+          "block_id": {
+            "type": "keyword"
+          },
+          "attributes": {
+            "type": "flattened"
+          },
+          "body": {
+            "type": "match_only_text"
+          }
+        }
+      }
+    }
+  },
+  "ingest_pipeline": {
+    "name": "logs-hdfs",
+    "description": "Copy the canonical timestamp onto @timestamp for the logs data stream.",
+    "processors": [
+      {
+        "set": {
+          "field": "@timestamp",
+          "copy_from": "timestamp"
+        }
+      }
+    ]
+  }
+}

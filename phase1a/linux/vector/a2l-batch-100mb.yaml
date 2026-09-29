@@ -1,0 +1,86 @@
+# Arm A2l - client-side batching, large: 100 MB / 30s.
+#
+# The large-batch end of the tradeoff. Expected to show the best throughput and the worst
+# ingest-to-visible latency of the sweep, and to be the arm that loses the most in-flight
+# data under the D2 kill -9 drill, because up to 30 seconds of events sit in the agent.
+#
+# max_events is raised too: at ~141 bytes per line, 100 MB is roughly 700k events, and the
+# default event cap would otherwise flush long before max_bytes is reached and this would
+# quietly be a different arm than it claims to be.
+
+data_dir: /var/lib/vector
+timezone: UTC
+
+sources:
+  hdfs:
+    type: stdin
+    decoding:
+      codec: bytes
+
+  # The canary (driver/canary.sh) enters here rather than being interleaved into stdin, so it
+  # shares the parse transform AND the sink batch with the bulk replay. That is what makes it
+  # measure this arm's visibility latency instead of a side channel.
+  canary:
+    type: socket
+    mode: tcp
+    address: 0.0.0.0:9000
+    decoding:
+      codec: bytes
+
+  metrics:
+    type: internal_metrics
+
+transforms:
+  parse:
+    type: remap
+    inputs: [hdfs, canary]
+    drop_on_error: true
+    reroute_dropped: true
+    source: |
+      . = parse_regex!(.message, r'^(?P<d>\d{6}) (?P<t>\d{6}) (?P<pid>\d+) (?P<level>[A-Z]+) (?P<component>[^:]+): (?P<body>.*)$')
+      . = {
+        "Timestamp": format_timestamp!(parse_timestamp!("20" + .d + " " + .t, "%Y%m%d %H%M%S"), "%Y-%m-%d %H:%M:%S"),
+        "Pid": to_int!(.pid),
+        "Level": .level,
+        "Component": .component,
+        "Body": .body
+      }
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs: [parse]
+    endpoint: http://node-1:8123
+    database: sysbench
+    table: logs_hdfs
+    format: json_each_row
+    compression: gzip
+    date_time_best_effort: true
+    skip_unknown_fields: false
+    batch:
+      max_bytes: 100000000
+      max_events: 1000000
+      timeout_secs: 30
+    buffer:
+      type: memory
+      max_events: 2000
+      when_full: block
+    request:
+      concurrency: 4
+      retry_attempts: 10
+      retry_initial_backoff_secs: 1
+      retry_max_duration_secs: 30
+    healthcheck:
+      enabled: true
+
+  parse_failures:
+    type: file
+    inputs: [parse.dropped]
+    path: /var/log/vector/phase1a-parse-failures.log
+    encoding:
+      codec: json
+
+  prometheus:
+    type: prometheus_exporter
+    inputs: [metrics]
+    address: 0.0.0.0:9598
