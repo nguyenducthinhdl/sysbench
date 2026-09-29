@@ -1,9 +1,11 @@
-# Raw LogHub HDFS_v1. Download from https://zenodo.org/records/8196385
+# Files over 2 MB stay local. Unpack HDFS_v1.zip from
+# https://zenodo.org/records/8196385 next to data/.
 data/HDFS.log
 data/HDFS_v1.zip
-
-# 120 MB; GitHub rejects files over 100 MB. Ships inside HDFS_v1.zip.
 data/preprocessed/Event_traces.csv
+data/preprocessed/Event_occurrence_matrix.csv
+data/preprocessed/HDFS.npz
+data/preprocessed/anomaly_label.csv
 
 __pycache__/
 *.py[cod]

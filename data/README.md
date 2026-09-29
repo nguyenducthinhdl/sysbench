@@ -14,8 +14,9 @@ ingest-architecture shakedown. Verified locally rather than trusted from the Log
 | Distinct pids | 27,799 |
 | Levels | INFO 10,812,836 / WARN 362,793 — no ERROR lines |
 
-`HDFS.log`, `HDFS_v1.zip`, and `preprocessed/Event_traces.csv` are not in git.
-`Event_traces.csv` is 120 MB, over GitHub's 100 MB file limit. Get the zip from
+`HDFS.log`, `HDFS_v1.zip`, and the large preprocessed files (`Event_traces.csv`,
+`Event_occurrence_matrix.csv`, `HDFS.npz`, `anomaly_label.csv`) are not in git.
+They are all over 2 MB. Get the zip from
 [Zenodo 8196385](https://zenodo.org/records/8196385) and unpack it next to this README.
 
 Every line matches `^[0-9]{6} [0-9]{6} [0-9]+ [A-Z]+ [^:]+: ` with zero exceptions, which is
