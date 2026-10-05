@@ -1,0 +1,156 @@
+# Two Go clients, Envoy in debug mode, and the payments and booking backends.
+# Logs are bind-mounted to ./logs. Each Go service restarts after a panic.
+
+services:
+  payments:
+    build: .
+    image: envoy-log-generator:local
+    command: ["/usr/local/bin/backend"]
+    environment:
+      SERVICE: payments
+      NAME: payments
+      PORT: "8080"
+      LOG_PATH: /logs/payments.log
+      RPS_WINDOW: ${RPS_WINDOW:-10m}
+      ERROR_WINDOW: ${ERROR_WINDOW:-15m}
+      PANIC_DELAYS: ${PANIC_DELAYS:-10m,15m}
+    volumes:
+      - ./logs:/logs
+    restart: on-failure
+    stop_grace_period: 2s
+
+  booking:
+    build: .
+    image: envoy-log-generator:local
+    command: ["/usr/local/bin/backend"]
+    environment:
+      SERVICE: booking
+      NAME: booking
+      PORT: "8080"
+      LOG_PATH: /logs/booking.log
+      RPS_WINDOW: ${RPS_WINDOW:-10m}
+      ERROR_WINDOW: ${ERROR_WINDOW:-15m}
+      PANIC_DELAYS: ${PANIC_DELAYS:-10m,15m}
+    volumes:
+      - ./logs:/logs
+    restart: on-failure
+    stop_grace_period: 2s
+
+  users:
+    build: .
+    image: envoy-log-generator:local
+    command: ["/usr/local/bin/backend"]
+    environment:
+      SERVICE: users
+      NAME: users
+      PORT: "8080"
+      LOG_PATH: /logs/users.log
+      RPS_WINDOW: ${RPS_WINDOW:-10m}
+      ERROR_WINDOW: ${ERROR_WINDOW:-15m}
+      PANIC_DELAYS: ${PANIC_DELAYS:-10m,15m}
+    volumes:
+      - ./logs:/logs
+    restart: on-failure
+    stop_grace_period: 2s
+
+  orders:
+    build: .
+    image: envoy-log-generator:local
+    command: ["/usr/local/bin/backend"]
+    environment:
+      SERVICE: orders
+      NAME: orders
+      PORT: "8080"
+      LOG_PATH: /logs/orders.log
+      RPS_WINDOW: ${RPS_WINDOW:-10m}
+      ERROR_WINDOW: ${ERROR_WINDOW:-15m}
+      PANIC_DELAYS: ${PANIC_DELAYS:-10m,15m}
+    volumes:
+      - ./logs:/logs
+    restart: on-failure
+    stop_grace_period: 2s
+
+  foods:
+    build: .
+    image: envoy-log-generator:local
+    command: ["/usr/local/bin/backend"]
+    environment:
+      SERVICE: foods
+      NAME: foods
+      PORT: "8080"
+      LOG_PATH: /logs/foods.log
+      RPS_WINDOW: ${RPS_WINDOW:-10m}
+      ERROR_WINDOW: ${ERROR_WINDOW:-15m}
+      PANIC_DELAYS: ${PANIC_DELAYS:-10m,15m}
+    volumes:
+      - ./logs:/logs
+    restart: on-failure
+    stop_grace_period: 2s
+
+  envoy:
+    image: envoyproxy/envoy:v1.36-latest
+    user: "0:0"
+    entrypoint: ["envoy"]
+    # One worker, so the 109 token bucket is a single process limit.
+    command:
+      - -c
+      - /etc/envoy/envoy.yaml
+      - -l
+      - debug
+      - --concurrency
+      - "1"
+      - --log-path
+      - /logs/envoy.log
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./log.lua:/etc/envoy/log.lua:ro
+      - ./logs:/logs
+    ports:
+      - "10000:10000"
+      - "9901:9901"
+    depends_on:
+      - payments
+      - booking
+      - users
+      - orders
+      - foods
+    restart: on-failure
+    stop_grace_period: 2s
+
+  client-1:
+    build: .
+    image: envoy-log-generator:local
+    command: ["/usr/local/bin/client"]
+    environment:
+      CLIENT_NAME: client-1
+      CLIENT_COUNT: "2"
+      ENVOY_URL: http://envoy:10000
+      LOG_PATH: /logs/client-1.log
+      RPS_WINDOW: ${RPS_WINDOW:-10m}
+      ERROR_WINDOW: ${ERROR_WINDOW:-15m}
+      PANIC_DELAYS: ${PANIC_DELAYS:-10m,15m}
+    volumes:
+      - ./logs:/logs
+    depends_on:
+      - envoy
+    restart: on-failure
+    stop_grace_period: 2s
+
+  client-2:
+    build: .
+    image: envoy-log-generator:local
+    command: ["/usr/local/bin/client"]
+    environment:
+      CLIENT_NAME: client-2
+      CLIENT_COUNT: "2"
+      ENVOY_URL: http://envoy:10000
+      LOG_PATH: /logs/client-2.log
+      RPS_WINDOW: ${RPS_WINDOW:-10m}
+      ERROR_WINDOW: ${ERROR_WINDOW:-15m}
+      PANIC_DELAYS: ${PANIC_DELAYS:-10m,15m}
+    volumes:
+      - ./logs:/logs
+    depends_on:
+      - envoy
+    restart: on-failure
+    stop_grace_period: 2s
