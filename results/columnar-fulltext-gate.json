@@ -1,0 +1,142 @@
+{
+  "passed": true,
+  "host": "macos",
+  "versions": {
+    "clickhouse": "26.2.19.43",
+    "elasticsearch": "9.2.8"
+  },
+  "manifest_sha256": "67682d737621f8ddb75e2d35a47f04c61249aab6486e08e2231fd138de4d1734",
+  "event_count": 2016000,
+  "counts": {
+    "rows:ch_col": {
+      "expected": 2016000,
+      "clickhouse": 2016000
+    },
+    "rows:ch_ft": {
+      "expected": 2016000,
+      "clickhouse": 2016000
+    },
+    "rows:ch_ng": {
+      "expected": 2016000,
+      "clickhouse": 2016000
+    },
+    "rows:ch_scan": {
+      "expected": 2016000,
+      "clickhouse": 2016000
+    },
+    "rows:es-col": {
+      "expected": 2016000,
+      "elasticsearch": 2016000
+    },
+    "rows:es-ft": {
+      "expected": 2016000,
+      "elasticsearch": 2016000
+    },
+    "rows:es-phrase": {
+      "expected": 2016000,
+      "elasticsearch": 2016000
+    },
+    "rows:es-ng": {
+      "expected": 2016000,
+      "elasticsearch": 2016000
+    },
+    "rows:es-scan": {
+      "expected": 2016000,
+      "elasticsearch": 2016000
+    },
+    "C1:7d": {
+      "expected": 1568000,
+      "ch-col": 1568000,
+      "es-col": 1568000
+    },
+    "C2:7d": {
+      "expected": 30602,
+      "ch-col": 30602,
+      "es-col": 30602
+    },
+    "F1:7d": {
+      "expected": 16,
+      "ch-ft": 16,
+      "ch-scan": 16,
+      "es-ft": 16,
+      "es-scan": 16
+    },
+    "C1:24h": {
+      "expected": 223606,
+      "ch-col": 223606,
+      "es-col": 223606
+    },
+    "C2:24h": {
+      "expected": 4327,
+      "ch-col": 4327,
+      "es-col": 4327
+    },
+    "F1:24h": {
+      "expected": 0,
+      "ch-ft": 0,
+      "ch-scan": 0,
+      "es-ft": 0,
+      "es-scan": 0
+    },
+    "C1:1h": {
+      "expected": 13196,
+      "ch-col": 13196,
+      "es-col": 13196
+    },
+    "C2:1h": {
+      "expected": 86,
+      "ch-col": 86,
+      "es-col": 86
+    },
+    "F1:1h": {
+      "expected": 0,
+      "ch-ft": 0,
+      "ch-scan": 0,
+      "es-ft": 0,
+      "es-scan": 0
+    },
+    "F2:7d": {
+      "expected": 0,
+      "ch-ft": 0,
+      "ch-scan": 0,
+      "es-ft": 0,
+      "es-scan": 0
+    },
+    "F4:7d": {
+      "expected": 10,
+      "ch-ft": 10,
+      "es-ft": 10
+    },
+    "F6-token:7d": {
+      "expected": 0,
+      "ch-ft": 0,
+      "es-ft": 0
+    },
+    "F5:7d": {
+      "expected": 8064,
+      "ch-ft": 8064,
+      "es-ft": 8064,
+      "es-phrase": 8064
+    },
+    "F6:7d": {
+      "expected": 20,
+      "ch-ng": 20,
+      "ch-scan": 20,
+      "es-ng": 20,
+      "es-scan": 20
+    },
+    "F5:24h": {
+      "expected": 1150,
+      "ch-ft": 1150,
+      "es-ft": 1150,
+      "es-phrase": 1150
+    },
+    "F6:24h": {
+      "expected": 1,
+      "ch-ng": 1,
+      "ch-scan": 1,
+      "es-ng": 1,
+      "es-scan": 1
+    }
+  }
+}

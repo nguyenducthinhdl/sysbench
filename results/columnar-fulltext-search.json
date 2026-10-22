@@ -1,0 +1,575 @@
+{
+  "host": "macos",
+  "page_cache_dropped": false,
+  "repetitions": 3,
+  "window": "7d",
+  "t0": "2026-09-01T00:00:00.000000Z",
+  "t1": "2026-09-08T00:00:00.000000Z",
+  "note": "Repetition 1 follows an engine restart. The host page cache was not dropped.",
+  "rows": [
+    {
+      "query_id": "C1",
+      "semantic": "columnar",
+      "statement": "count events in 7 days with cluster = dc1",
+      "arm": "es-col",
+      "engine": "elasticsearch",
+      "repetitions": [
+        {
+          "count": 1568000,
+          "client_wall_ms": 67.9,
+          "engine_wall_ms": 59
+        },
+        {
+          "count": 1568000,
+          "client_wall_ms": 54.5,
+          "engine_wall_ms": 49
+        },
+        {
+          "count": 1568000,
+          "client_wall_ms": 26.0,
+          "engine_wall_ms": 21
+        }
+      ],
+      "count": 1568000,
+      "counts_stable": true,
+      "full_text_index_used": "no (ScanningBinaryDocValuesTermQuery)",
+      "proof": {
+        "took": 149,
+        "leaves": [
+          {
+            "type": "ScanningBinaryDocValuesTermQuery",
+            "description": "ScanningBinaryDocValuesTermQuery(fieldName=cluster,term=[64 63 31])"
+          }
+        ]
+      }
+    },
+    {
+      "query_id": "F1",
+      "semantic": "TOKEN",
+      "statement": "count zzq_s5 in 7 days, cluster = dc1",
+      "arm": "es-ft",
+      "engine": "elasticsearch",
+      "repetitions": [
+        {
+          "count": 16,
+          "client_wall_ms": 12.9,
+          "engine_wall_ms": 6
+        },
+        {
+          "count": 16,
+          "client_wall_ms": 7.6,
+          "engine_wall_ms": 4
+        },
+        {
+          "count": 16,
+          "client_wall_ms": 9.1,
+          "engine_wall_ms": 4
+        }
+      ],
+      "count": 16,
+      "counts_stable": true,
+      "full_text_index_used": "text-plus-ScanningBinaryDocValuesTermQuery",
+      "proof": {
+        "took": 4,
+        "leaves": [
+          {
+            "type": "ScanningBinaryDocValuesTermQuery",
+            "description": "ScanningBinaryDocValuesTermQuery(fieldName=cluster,term=[64 63 31])"
+          },
+          {
+            "type": "TermQuery",
+            "description": "body:zzq"
+          },
+          {
+            "type": "TermQuery",
+            "description": "body:s5"
+          }
+        ]
+      }
+    },
+    {
+      "query_id": "F1",
+      "semantic": "TOKEN",
+      "statement": "count zzq_s5 in 7 days, cluster = dc1",
+      "arm": "es-scan",
+      "engine": "elasticsearch",
+      "repetitions": [
+        {
+          "count": 16,
+          "client_wall_ms": 912.0,
+          "engine_wall_ms": 906
+        },
+        {
+          "count": 16,
+          "client_wall_ms": 669.4,
+          "engine_wall_ms": 664
+        },
+        {
+          "count": 16,
+          "client_wall_ms": 640.7,
+          "engine_wall_ms": 637
+        }
+      ],
+      "count": 16,
+      "counts_stable": true,
+      "full_text_index_used": "no (ScanningBinaryDocValuesTermQuery,ScriptQuery)",
+      "proof": {
+        "took": 544,
+        "leaves": [
+          {
+            "type": "ScanningBinaryDocValuesTermQuery",
+            "description": "ScanningBinaryDocValuesTermQuery(fieldName=cluster,term=[64 63 31])"
+          },
+          {
+            "type": "ScriptQuery",
+            "description": "ScriptQuery(Script{type=inline, lang='painless', idOrCode='if (doc['body'].size() == 0) return false; String b = doc['body'].value; return b.indexOf('zzq_s5') >= 0;', options={}, params={}})"
+          }
+        ]
+      }
+    },
+    {
+      "query_id": "F5",
+      "semantic": "phrase",
+      "statement": "count the phrase connection refused in 7 days",
+      "arm": "es-ft",
+      "engine": "elasticsearch",
+      "repetitions": [
+        {
+          "count": 8064,
+          "client_wall_ms": 254.5,
+          "engine_wall_ms": 249
+        },
+        {
+          "count": 8064,
+          "client_wall_ms": 139.8,
+          "engine_wall_ms": 136
+        },
+        {
+          "count": 8064,
+          "client_wall_ms": 111.3,
+          "engine_wall_ms": 108
+        }
+      ],
+      "count": 8064,
+      "counts_stable": true,
+      "full_text_index_used": "yes",
+      "proof": {
+        "took": 115,
+        "leaves": [
+          {
+            "type": "TermQuery",
+            "description": "body:connection"
+          },
+          {
+            "type": "TermQuery",
+            "description": "body:refused"
+          }
+        ]
+      }
+    },
+    {
+      "query_id": "F5",
+      "semantic": "phrase",
+      "statement": "count the phrase connection refused in 7 days",
+      "arm": "es-phrase",
+      "engine": "elasticsearch",
+      "repetitions": [
+        {
+          "count": 8064,
+          "client_wall_ms": 17.9,
+          "engine_wall_ms": 14
+        },
+        {
+          "count": 8064,
+          "client_wall_ms": 7.3,
+          "engine_wall_ms": 4
+        },
+        {
+          "count": 8064,
+          "client_wall_ms": 8.2,
+          "engine_wall_ms": 4
+        }
+      ],
+      "count": 8064,
+      "counts_stable": true,
+      "full_text_index_used": "yes",
+      "proof": {
+        "took": 5,
+        "leaves": [
+          {
+            "type": "PhraseQuery",
+            "description": "body:\"connection refused\""
+          }
+        ]
+      }
+    },
+    {
+      "query_id": "F6",
+      "semantic": "SUBSTRING",
+      "statement": "count the substring abc in 7 days",
+      "arm": "es-ng",
+      "engine": "elasticsearch",
+      "repetitions": [
+        {
+          "count": 20,
+          "client_wall_ms": 26.6,
+          "engine_wall_ms": 23
+        },
+        {
+          "count": 20,
+          "client_wall_ms": 11.8,
+          "engine_wall_ms": 6
+        },
+        {
+          "count": 20,
+          "client_wall_ms": 8.0,
+          "engine_wall_ms": 4
+        }
+      ],
+      "count": 20,
+      "counts_stable": true,
+      "full_text_index_used": "no (BinaryDvConfirmedAutomatonQuery)",
+      "proof": {
+        "took": 4,
+        "leaves": [
+          {
+            "type": "BinaryDvConfirmedAutomatonQuery",
+            "description": ":PatternAutomatonProvider[matchPattern=*abc*, caseInsensitive=false]"
+          }
+        ]
+      }
+    },
+    {
+      "query_id": "F6",
+      "semantic": "SUBSTRING",
+      "statement": "count the substring abc in 7 days",
+      "arm": "es-scan",
+      "engine": "elasticsearch",
+      "repetitions": [
+        {
+          "count": 20,
+          "client_wall_ms": 668.1,
+          "engine_wall_ms": 664
+        },
+        {
+          "count": 20,
+          "client_wall_ms": 581.7,
+          "engine_wall_ms": 578
+        },
+        {
+          "count": 20,
+          "client_wall_ms": 572.2,
+          "engine_wall_ms": 566
+        }
+      ],
+      "count": 20,
+      "counts_stable": true,
+      "full_text_index_used": "no (ScriptQuery)",
+      "proof": {
+        "took": 598,
+        "leaves": [
+          {
+            "type": "ScriptQuery",
+            "description": "ScriptQuery(Script{type=inline, lang='painless', idOrCode='if (doc['body'].size() == 0) return false; String b = doc['body'].value; return b.indexOf('abc') >= 0;', options={}, params={}})"
+          }
+        ]
+      }
+    },
+    {
+      "query_id": "F6-token",
+      "semantic": "TOKEN",
+      "statement": "count the token abc in 7 days; the decoy is not a token",
+      "arm": "es-ft",
+      "engine": "elasticsearch",
+      "repetitions": [
+        {
+          "count": 0,
+          "client_wall_ms": 8.2,
+          "engine_wall_ms": 3
+        },
+        {
+          "count": 0,
+          "client_wall_ms": 6.5,
+          "engine_wall_ms": 1
+        },
+        {
+          "count": 0,
+          "client_wall_ms": 3.9,
+          "engine_wall_ms": 1
+        }
+      ],
+      "count": 0,
+      "counts_stable": true,
+      "full_text_index_used": "yes",
+      "proof": {
+        "took": 2,
+        "leaves": [
+          {
+            "type": "TermQuery",
+            "description": "body:abc"
+          }
+        ]
+      }
+    },
+    {
+      "query_id": "C1",
+      "semantic": "columnar",
+      "statement": "count events in 7 days with cluster = dc1",
+      "arm": "ch-col",
+      "engine": "clickhouse",
+      "repetitions": [
+        {
+          "count": 1568000,
+          "client_wall_ms": 52.4,
+          "engine_wall_ms": 48,
+          "cpu_seconds": 0.0345,
+          "read_rows": 1678976,
+          "read_bytes": 15111174
+        },
+        {
+          "count": 1568000,
+          "client_wall_ms": 20.8,
+          "engine_wall_ms": 19,
+          "cpu_seconds": 0.0158,
+          "read_rows": 1678976,
+          "read_bytes": 15111174
+        },
+        {
+          "count": 1568000,
+          "client_wall_ms": 13.0,
+          "engine_wall_ms": 12,
+          "cpu_seconds": 0.0156,
+          "read_rows": 1678976,
+          "read_bytes": 15111174
+        }
+      ],
+      "count": 1568000,
+      "counts_stable": true,
+      "full_text_index_used": "no",
+      "proof": "Expression ((Project names + Projection))\n  Aggregating\n    Expression (Before GROUP BY)\n      Expression ((WHERE + Change column names to column identifiers))\n        ReadFromMergeTree (sysbench.ch_col)\n        Indexes:\n          MinMax\n            Keys:\n              Timestamp\n            Condition: and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          Partition\n            Keys:\n              toDate(Timestamp)\n            Condition: and((toDate(Timestamp) in (-Inf, 20704]), (toDate(Timestamp) in [20697, +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          PrimaryKey\n            Keys:\n              Cluster\n              Timestamp\n            Condition: and((Cluster in ['dc1', 'dc1']), and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf))))\n            Parts: 27/27\n            Granules: 209/258\n            Search Algorithm: generic exclusion search\n          Ranges: 27"
+    },
+    {
+      "query_id": "F1",
+      "semantic": "TOKEN",
+      "statement": "count zzq_s5 in 7 days, cluster = dc1",
+      "arm": "ch-ft",
+      "engine": "clickhouse",
+      "repetitions": [
+        {
+          "count": 16,
+          "client_wall_ms": 31.3,
+          "engine_wall_ms": 30,
+          "cpu_seconds": 0.0149,
+          "read_rows": 139264,
+          "read_bytes": 1392822
+        },
+        {
+          "count": 16,
+          "client_wall_ms": 9.7,
+          "engine_wall_ms": 8,
+          "cpu_seconds": 0.0058,
+          "read_rows": 139264,
+          "read_bytes": 1392822
+        },
+        {
+          "count": 16,
+          "client_wall_ms": 7.9,
+          "engine_wall_ms": 7,
+          "cpu_seconds": 0.0056,
+          "read_rows": 139264,
+          "read_bytes": 1392822
+        }
+      ],
+      "count": 16,
+      "counts_stable": true,
+      "full_text_index_used": "yes",
+      "proof": "Expression ((Project names + Projection))\n  Aggregating\n    Expression (Before GROUP BY)\n      Expression\n        ReadFromMergeTree (sysbench.ch_ft)\n        Indexes:\n          MinMax\n            Keys:\n              Timestamp\n            Condition: and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          Partition\n            Keys:\n              toDate(Timestamp)\n            Condition: and((toDate(Timestamp) in (-Inf, 20704]), (toDate(Timestamp) in [20697, +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          PrimaryKey\n            Keys:\n              Cluster\n              Timestamp\n            Condition: and((Cluster in ['dc1', 'dc1']), and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf))))\n            Parts: 27/27\n            Granules: 209/258\n            Search Algorithm: generic exclusion search\n          Skip\n            Name: idx_body\n            Description: text GRANULARITY 100000000\n            Condition: (mode: All; tokens: [\"s5\", \"zzq\"])\n            Parts: 9/27\n            Granules: 17/209\n          Ranges: 16"
+    },
+    {
+      "query_id": "F1",
+      "semantic": "TOKEN",
+      "statement": "count zzq_s5 in 7 days, cluster = dc1",
+      "arm": "ch-scan",
+      "engine": "clickhouse",
+      "repetitions": [
+        {
+          "count": 16,
+          "client_wall_ms": 379.7,
+          "engine_wall_ms": 379,
+          "cpu_seconds": 0.4107,
+          "read_rows": 1678976,
+          "read_bytes": 174036973
+        },
+        {
+          "count": 16,
+          "client_wall_ms": 137.1,
+          "engine_wall_ms": 135,
+          "cpu_seconds": 0.1358,
+          "read_rows": 548864,
+          "read_bytes": 57291570
+        },
+        {
+          "count": 16,
+          "client_wall_ms": 151.5,
+          "engine_wall_ms": 150,
+          "cpu_seconds": 0.129,
+          "read_rows": 548864,
+          "read_bytes": 57291570
+        }
+      ],
+      "count": 16,
+      "counts_stable": true,
+      "full_text_index_used": "no",
+      "proof": "Expression ((Project names + Projection))\n  Aggregating\n    Expression (Before GROUP BY)\n      Expression ((WHERE + Change column names to column identifiers))\n        ReadFromMergeTree (sysbench.ch_scan)\n        Indexes:\n          MinMax\n            Keys:\n              Timestamp\n            Condition: and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          Partition\n            Keys:\n              toDate(Timestamp)\n            Condition: and((toDate(Timestamp) in (-Inf, 20704]), (toDate(Timestamp) in [20697, +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          PrimaryKey\n            Keys:\n              Cluster\n              Timestamp\n            Condition: and((Cluster in ['dc1', 'dc1']), and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf))))\n            Parts: 27/27\n            Granules: 209/258\n            Search Algorithm: generic exclusion search\n          Ranges: 27"
+    },
+    {
+      "query_id": "F5",
+      "semantic": "phrase",
+      "statement": "count the phrase connection refused in 7 days",
+      "arm": "ch-ft",
+      "engine": "clickhouse",
+      "repetitions": [
+        {
+          "count": 8064,
+          "client_wall_ms": 124.3,
+          "engine_wall_ms": 122,
+          "cpu_seconds": 0.0849,
+          "read_rows": 2016000,
+          "read_bytes": 205907910
+        },
+        {
+          "count": 8064,
+          "client_wall_ms": 62.4,
+          "engine_wall_ms": 61,
+          "cpu_seconds": 0.0717,
+          "read_rows": 2016000,
+          "read_bytes": 205907910
+        },
+        {
+          "count": 8064,
+          "client_wall_ms": 82.4,
+          "engine_wall_ms": 80,
+          "cpu_seconds": 0.0675,
+          "read_rows": 2016000,
+          "read_bytes": 205907910
+        }
+      ],
+      "count": 8064,
+      "counts_stable": true,
+      "full_text_index_used": "no",
+      "proof": "Expression ((Project names + Projection))\n  Aggregating\n    Expression (Before GROUP BY)\n      Expression ((WHERE + Change column names to column identifiers))\n        ReadFromMergeTree (sysbench.ch_ft)\n        Indexes:\n          MinMax\n            Keys:\n              Timestamp\n            Condition: and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          Partition\n            Keys:\n              toDate(Timestamp)\n            Condition: and((toDate(Timestamp) in (-Inf, 20704]), (toDate(Timestamp) in [20697, +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          PrimaryKey\n            Keys:\n              Timestamp\n            Condition: and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n            Search Algorithm: generic exclusion search\n          Ranges: 27"
+    },
+    {
+      "query_id": "F6",
+      "semantic": "SUBSTRING",
+      "statement": "count the substring abc in 7 days",
+      "arm": "ch-ng",
+      "engine": "clickhouse",
+      "repetitions": [
+        {
+          "count": 20,
+          "client_wall_ms": 45.4,
+          "engine_wall_ms": 44,
+          "cpu_seconds": 0.0215,
+          "read_rows": 138836,
+          "read_bytes": 17763210
+        },
+        {
+          "count": 20,
+          "client_wall_ms": 20.8,
+          "engine_wall_ms": 20,
+          "cpu_seconds": 0.0166,
+          "read_rows": 138836,
+          "read_bytes": 17763210
+        },
+        {
+          "count": 20,
+          "client_wall_ms": 19.6,
+          "engine_wall_ms": 16,
+          "cpu_seconds": 0.0112,
+          "read_rows": 138836,
+          "read_bytes": 17763210
+        }
+      ],
+      "count": 20,
+      "counts_stable": true,
+      "full_text_index_used": "yes",
+      "proof": "Expression ((Project names + Projection))\n  Aggregating\n    Expression (Before GROUP BY)\n      Expression ((WHERE + Change column names to column identifiers))\n        ReadFromMergeTree (sysbench.ch_ng)\n        Indexes:\n          MinMax\n            Keys:\n              Timestamp\n            Condition: and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf)))\n            Parts: 34/34\n            Granules: 279/279\n          Partition\n            Keys:\n              toDate(Timestamp)\n            Condition: and((toDate(Timestamp) in (-Inf, 20704]), (toDate(Timestamp) in [20697, +Inf)))\n            Parts: 34/34\n            Granules: 279/279\n          PrimaryKey\n            Keys:\n              Timestamp\n            Condition: and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf)))\n            Parts: 34/34\n            Granules: 279/279\n            Search Algorithm: generic exclusion search\n          Skip\n            Name: idx_ng\n            Description: text GRANULARITY 100000000\n            Condition: (mode: All; tokens: [\"abc\"])\n            Parts: 12/34\n            Granules: 18/279\n          Ranges: 18"
+    },
+    {
+      "query_id": "F6",
+      "semantic": "SUBSTRING",
+      "statement": "count the substring abc in 7 days",
+      "arm": "ch-scan",
+      "engine": "clickhouse",
+      "repetitions": [
+        {
+          "count": 20,
+          "client_wall_ms": 110.6,
+          "engine_wall_ms": 109,
+          "cpu_seconds": 0.0782,
+          "read_rows": 2016000,
+          "read_bytes": 204843192
+        },
+        {
+          "count": 20,
+          "client_wall_ms": 57.3,
+          "engine_wall_ms": 55,
+          "cpu_seconds": 0.0301,
+          "read_rows": 633542,
+          "read_bytes": 65025559
+        },
+        {
+          "count": 20,
+          "client_wall_ms": 45.4,
+          "engine_wall_ms": 43,
+          "cpu_seconds": 0.0248,
+          "read_rows": 633542,
+          "read_bytes": 65025559
+        }
+      ],
+      "count": 20,
+      "counts_stable": true,
+      "full_text_index_used": "no",
+      "proof": "Expression ((Project names + Projection))\n  Aggregating\n    Expression (Before GROUP BY)\n      Expression ((WHERE + Change column names to column identifiers))\n        ReadFromMergeTree (sysbench.ch_scan)\n        Indexes:\n          MinMax\n            Keys:\n              Timestamp\n            Condition: and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          Partition\n            Keys:\n              toDate(Timestamp)\n            Condition: and((toDate(Timestamp) in (-Inf, 20704]), (toDate(Timestamp) in [20697, +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          PrimaryKey\n            Keys:\n              Timestamp\n            Condition: and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n            Search Algorithm: generic exclusion search\n          Ranges: 27"
+    },
+    {
+      "query_id": "F6-token",
+      "semantic": "TOKEN",
+      "statement": "count the token abc in 7 days; the decoy is not a token",
+      "arm": "ch-ft",
+      "engine": "clickhouse",
+      "repetitions": [
+        {
+          "count": 0,
+          "client_wall_ms": 39.3,
+          "engine_wall_ms": 38,
+          "cpu_seconds": 0.0124,
+          "read_rows": 0,
+          "read_bytes": 0
+        },
+        {
+          "count": 0,
+          "client_wall_ms": 9.1,
+          "engine_wall_ms": 7,
+          "cpu_seconds": 0.0017,
+          "read_rows": 0,
+          "read_bytes": 0
+        },
+        {
+          "count": 0,
+          "client_wall_ms": 6.6,
+          "engine_wall_ms": 4,
+          "cpu_seconds": 0.0016,
+          "read_rows": 0,
+          "read_bytes": 0
+        }
+      ],
+      "count": 0,
+      "counts_stable": true,
+      "full_text_index_used": "yes",
+      "proof": "Expression ((Project names + Projection))\n  Aggregating\n    Expression (Before GROUP BY)\n      Expression\n        ReadFromMergeTree (sysbench.ch_ft)\n        Indexes:\n          MinMax\n            Keys:\n              Timestamp\n            Condition: and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          Partition\n            Keys:\n              toDate(Timestamp)\n            Condition: and((toDate(Timestamp) in (-Inf, 20704]), (toDate(Timestamp) in [20697, +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n          PrimaryKey\n            Keys:\n              Timestamp\n            Condition: and((Timestamp in (-Inf, '1788825600')), (Timestamp in ['1788220800', +Inf)))\n            Parts: 27/27\n            Granules: 258/258\n            Search Algorithm: generic exclusion search\n          Skip\n            Name: idx_body\n            Description: text GRANULARITY 100000000\n            Condition: (mode: All; tokens: [\"abc\"])\n            Parts: 0/27\n            Granules: 0/258\n          Ranges: 0"
+    }
+  ],
+  "count_mismatches": []
+}
