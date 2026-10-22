@@ -1,0 +1,21 @@
+1. # Using: Kafka Engine of ClickHouse ==> ignore consumer
+
+# Ability:
+2. # Insert 1 by 1 vs Batch:
+    - Metrics Limit (example: 300 event per seconds)? how many thread / event per event?, Latency
+
+3. # Perf vs ES, Loki, Victoria Log:
+- metrics alert: ==> aggregation how many warning with ....
+- CPU, RAM
+
+4. # benchmark: regression between inserting log speed and the infra power
+# CPU, RAM, Storage vs Speed: 
+# increase CPU, RAM ==> how many profit?
+
+5. Log Ingest:
+# Log Agent: Need to test some popular log agent 
+
+==> Selling Point: Useful for SME, startup Data/AI company who owned already ClickHouse?
+ + SQL
+ + DataWH
+ + ...

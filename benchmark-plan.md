@@ -7,6 +7,9 @@ How we settle the logging engine choice with evidence. Companion documents:
 [queries/matrix.md](queries/matrix.md) (the query suite),
 [phase1a-clickhouse-ingest.md](phase1a-clickhouse-ingest.md) (the ClickHouse ingest-pipeline
 shakedown that runs before phase 1),
+[columnar-fulltext-spec.md](columnar-fulltext-spec.md) (ClickHouse vs Elasticsearch,
+columnar access and full-text search, measured apart),
+[columnar-fulltext-plan.md](columnar-fulltext-plan.md) (how that spec is executed),
 [notebook/logging-decision-handbook.md](notebook/logging-decision-handbook.md) (the deliverable).
 
 Candidates and pinned versions:

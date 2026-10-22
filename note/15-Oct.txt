@@ -1,0 +1,41 @@
+- Log data:
+    - Biz app:
+        - Throughput: users x components x modules
+        - Info Level: Not too much
+        - Debug: 
+    - data storage: DB, filesystem, ES, MySQL ...
+    - message queue: kafka, rabbit, ...
+    - networking app: reverse proxy, gateway, ... ==> Too much: ? assumptions, can refer ubers
+        + man who just know product ==> gateway, dashboard
+    - obs stacks: grafana, ...
+    - platform logs:
+    - CI/CD logs: 
+
+- format: 
+    - Json, semi structured plaintext
+    - formated plain text
+
+- pattern (looping frequence):
+    - ==> compression
+
+- log frequency:
+    - 
+
+- environement:
+    - staging, dev, product
+
+==> excels: scenario of company ==> log generators for some scenarios ==> survey:
+- actors:
+    - Tracing incident
+    - Debug
+    - Anormaly events tracing (email, ..) + audit
+
+
+- Parts
+    - If logging throughput for worstcase, how many file to scan, impact?
+    - Does it always load on Mem?
+    - Focus more deapthly: how to merge chunks,
+
+- Syscon Fanpage?
+    - 
+
