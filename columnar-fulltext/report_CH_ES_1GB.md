@@ -1,10 +1,11 @@
 # ClickHouse and Elasticsearch Columnar mode
 Actually, Elastic Search has [columnar-storage mode](https://www.elastic.co/search-labs/blog/elasticsearch-columnar-storage) which is similar with ClickHouse's columnar storage principal. This benchmarking is just an experimental by measuring ClikHouse and Columnar Elasticsearch Search on the 1 GB logging datasize in term of the Storage and Full-text search feature.
 
-Bencmarking: 1 GB prefix on ClickHouse 26.2.19.43 and Elasticsearch 9.5.5 in `logsdb_columnar`. The host is macOS Colima at 2 GB. [columnar-fulltext-spec.md](../columnar-fulltext-spec.md) §13 is for a 16-core / 64 GB cgroup, so these numbers stay out of that decision table.
+Benchmarking: 1 GB prefix on ClickHouse 26.2.19.43 and Elasticsearch 9.5.5 in `logsdb_columnar`. The host is macOS Colima at 2 GB. [columnar-fulltext-spec.md](../columnar-fulltext-spec.md) §13 is for a 16-core / 64 GB cgroup, so these numbers stay out of that decision table.
 
 ## TL;DR
 
+### Logging Data
 One corpus, loaded once into each layout. Storage is the bytes on disk after that load. Search is the same predicate on every arm that claims it, timed only after the counts match.
 
 | | |
@@ -16,9 +17,30 @@ One corpus, loaded once into each layout. Storage is the bytes on disk after tha
 | Warm | Median of repetitions 2 and 3 |
 | Kept runs | Every arm of a query returned the same count |
 
-Columnar Elasticsearch stores 1.02× to 1.53× the matching ClickHouse table. The n-gram arms are the closest, 1.02×. The scan arms are the widest, 1.53×.
+### Results
 
-Full text is available on both engines when the arm builds one (`ft`, `phrase`, `ng`). The `col` and `scan` arms answer the same predicates by reading the log line. Warm wall time for the token `zzq_s5` in `dc1` (16 events): `es-ft` 4 ms, `ch-ft` 7.5 ms, `ch-scan` 142.5 ms, `es-scan` 650.5 ms. The phrase `connection refused` (8,064 events) is 4 ms on `es-phrase`. ClickHouse 26.2 scans `Body` for that phrase, 70.5 ms. Substring `abc` (20 events) is 5 ms on `es-ng` and 18 ms on `ch-ng`. The token `abc` returns 0 on both token arms. Elasticsearch warm CPU-seconds were not measured. See Notes.
+Disk size for the same 2,016,000 events. `ES / CH` is Elasticsearch divided by ClickHouse.
+
+| Indexed by | ClickHouse | Elasticsearch | ES / CH |
+| --- | ---: | ---: | ---: |
+| 3-character n-grams (`ng`) | 246.7 MB | 252.8 MB | 1.02× |
+| tokens (`ft`) | 164.9 MB | 218.8 MB | 1.33× |
+| columns, bloom on `TraceId` (`col`) | 141.3 MB | 200.5 MB | 1.42× |
+| word positions (`phrase`, vs `ch-ft`) | — | 243.0 MB | 1.47× |
+| no body index (`scan`) | 138.8 MB | 212.6 MB | 1.53× |
+
+N-gram is the closest size. Scan is the widest.
+
+Full text is on `ft`, `phrase`, and `ng`. `col` and `scan` read the log line. Warm wall time, same count on every arm:
+
+| Search | What is indexed | Hits | Indexed | Scan |
+| --- | --- | ---: | --- | --- |
+| token `zzq_s5` in `dc1` | whole tokens. `zzq_s5` is `zzq` and `s5` | 16 | `es-ft` 4 ms, `ch-ft` 7.5 ms | `ch-scan` 142.5 ms, `es-scan` 650.5 ms |
+| phrase `connection refused` | word order. ClickHouse 26.2 has no phrase index | 8,064 | `es-phrase` 4 ms | `ch-ft` 70.5 ms, `es-ft` 122 ms |
+| substring `abc` | every overlapping 3-character slice, not a category | 20 | `es-ng` 5 ms, `ch-ng` 18 ms | `ch-scan` 49 ms, `es-scan` 572 ms |
+| token `abc` | the whole word `abc` only | 0 | both token indexes prune it | — |
+
+`traceabc` stores the slices `tra rac ace cea eab abc`, so the n-gram search hits. The token search does not, because `traceabc` is one token.
 
 ## Terms
 
@@ -29,7 +51,7 @@ An **arm** is one layout of the same events. `ch-col` and `es-col` are the `col`
 | col | Columns, plus a bloom filter on `TraceId`. No index on `Body`. | `body` is a keyword with `index: false`. The value is doc values. |
 | ft | `idx_body`, a text skip index, tokenizer `splitByNonAlpha`. | `body` is `match_only_text`. |
 | phrase | No separate table. The phrase query runs on `ch-ft`. | `body` is `text` with `index_options: positions`. |
-| ng | `idx_ng`, a text skip index, tokenizer `ngrams(3)`. | `body` is a `wildcard` field. |
+| ng | `idx_ng`, every overlapping 3-character slice (`ngrams(3)`). Not a category. | `body` is a `wildcard` field, character n-grams plus the full string. |
 | scan | `Body` column, no skip index on it. | `body` is a keyword with `index: false` and doc values on. A script reads the value. |
 
 `ft` and the ClickHouse tokenizer split on characters outside `0-9A-Za-z`. `zzq_s5` is the tokens `zzq` and `s5`. Case stays as written. `match_only_text` uses that same split and stores no word positions. `ng` matches the character sequence `abc`, including inside `traceabc`. `scan` runs the indexed arm's predicate by reading the raw log line.
@@ -174,13 +196,13 @@ Raw rows, including each `EXPLAIN` and profile, are in [results/columnar-fulltex
 
 ## Is full text available?
 
-Yes on both engines, on the arms that build a text index. `col` and `scan` have no full-text path on `body`. They still return the matching count by reading the column.
+Yes on both engines, on `ft`, `phrase`, and `ng`. `col` and `scan` have no body index. They return the same count by reading the column. Warm times are in the TL;DR.
 
-On F1, `ch-ft` warm wall time is 7.5 ms and `ch-scan` is 142.5 ms. `es-ft` is 4 ms and `es-scan` is 650.5 ms. On F6, `ch-ng` is 18 ms and `ch-scan` is 49 ms. `es-ng` is 5 ms and `es-scan` is 572 ms.
-
-Phrase is the gap on ClickHouse 26.2.19. `hasPhrase` is absent, so F5 is `position(Body, 'connection refused') > 0` and `EXPLAIN` shows no `Skip`. `es-phrase` uses a `PhraseQuery` (4 ms). `es-ft` has the two terms and no positions (122 ms). [Match-only text](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/match-only-text).
-
-F6-token returns 0 on `ch-ft` and `es-ft`. The decoy sits inside `traceabc` and `xxabcyy`. F6 returns 20. Token search and substring search are different questions, and both are available.
+| Kind | ClickHouse | Elasticsearch | This run |
+| --- | --- | --- | --- |
+| token | `idx_body`, words split on non-alphanumeric characters | `match_only_text`, same split, no word positions | F1 used the index: `Skip` `idx_body`, and `TermQuery` `body:zzq` / `body:s5` |
+| phrase | `position(Body, ...)` scans the column. `hasPhrase` is absent on 26.2.19 | `text` with positions | `es-phrase` is a `PhraseQuery`. `ch-ft` has no `Skip` |
+| 3-character n-gram | `idx_ng`, every overlapping 3-character slice | `wildcard`, character n-grams plus the full string | F6 finds `abc` inside `traceabc` (20 hits). The token query for `abc` returns 0 |
 
 ### Evidence
 
