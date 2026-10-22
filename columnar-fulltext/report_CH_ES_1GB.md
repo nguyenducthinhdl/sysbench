@@ -1,6 +1,7 @@
-# ClickHouse and Elasticsearch
+# ClickHouse and Elasticsearch Columnar mode
+Actually, Elastic Search has [columnar-storage mode](https://www.elastic.co/search-labs/blog/elasticsearch-columnar-storage) which is similar with ClickHouse's columnar storage principal. This benchmarking is just an experimental by measuring ClikHouse and Columnar Elasticsearch Search on the 1 GB logging datasize in term of the Storage and Full-text search feature.
 
-1 GB prefix on ClickHouse 26.2.19.43 and Elasticsearch 9.5.5 in `logsdb_columnar`. The host is macOS Colima at 2 GB. [columnar-fulltext-spec.md](../columnar-fulltext-spec.md) §13 is for a 16-core / 64 GB cgroup, so these numbers stay out of that decision table.
+Bencmarking: 1 GB prefix on ClickHouse 26.2.19.43 and Elasticsearch 9.5.5 in `logsdb_columnar`. The host is macOS Colima at 2 GB. [columnar-fulltext-spec.md](../columnar-fulltext-spec.md) §13 is for a 16-core / 64 GB cgroup, so these numbers stay out of that decision table.
 
 ## TL;DR
 
