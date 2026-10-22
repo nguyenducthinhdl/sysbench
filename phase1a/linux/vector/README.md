@@ -53,3 +53,12 @@ transform drops events over its threshold and would break the count gate.
 ```bash
 phase1a/linux/driver/replay.sh a2m 1 throttled
 ```
+
+## Live generator (not an arm)
+
+[live-envoy.yaml](live-envoy.yaml) tails envoy-log-generator files into `sysbench.logs_live`. It is not part of the A1–B2 matrix and must not run during a replay.
+
+```bash
+cd envoy-log-generator && ./run.sh
+ENVOY_LOG_DIR=$PWD/logs phase1a/linux/driver/run-live.sh
+```

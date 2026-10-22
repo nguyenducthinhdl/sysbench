@@ -1,4 +1,4 @@
-# Two Go clients, Envoy in debug mode, and the payments and booking backends.
+# Two Go clients, Envoy (info logs), and the payments and booking backends.
 # Logs are bind-mounted to ./logs. Each Go service restarts after a panic.
 
 services:
@@ -96,7 +96,7 @@ services:
       - -c
       - /etc/envoy/envoy.yaml
       - -l
-      - debug
+      - info
       - --concurrency
       - "1"
       - --log-path

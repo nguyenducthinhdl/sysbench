@@ -1,0 +1,169 @@
+# Tail envoy-log-generator logs into sysbench.logs_live.
+# App/client files are the Go format from logx; envoy-access.log is JSON;
+# envoy.log is Envoy's debug text (including stack traces from upstream 500s).
+
+data_dir: /var/lib/vector
+timezone: UTC
+
+sources:
+  apps:
+    type: file
+    include:
+      - /logs/envoy/payments.log
+      - /logs/envoy/booking.log
+      - /logs/envoy/users.log
+      - /logs/envoy/orders.log
+      - /logs/envoy/foods.log
+      - /logs/envoy/client-1.log
+      - /logs/envoy/client-2.log
+    read_from: end
+    ignore_not_found: true
+    multiline:
+      start_pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+      mode: halt_before
+      condition_pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+      timeout_ms: 500
+
+  access:
+    type: file
+    include:
+      - /logs/envoy/envoy-access.log
+    read_from: end
+    ignore_not_found: true
+
+  envoy_debug:
+    type: file
+    include:
+      - /logs/envoy/envoy.log
+    read_from: end
+    ignore_not_found: true
+
+  metrics:
+    type: internal_metrics
+
+transforms:
+  apps_parse:
+    type: remap
+    inputs: [apps]
+    drop_on_error: true
+    reroute_dropped: true
+    source: |
+      file = to_string(.file) ?? "app"
+      parsed = parse_regex!(.message, r'(?s)^(?P<ts>\S+) (?P<name>[^/]+)/(?P<ip>\S+) (?P<level>DEBUG|INFO|ERROR) (?P<component>\S+) (?P<body>.*)$')
+      ts = parse_timestamp!(parsed.ts, "%Y-%m-%dT%H:%M:%S%.fZ")
+      . = {
+        "Timestamp": format_timestamp!(ts, "%Y-%m-%dT%H:%M:%S%.6fZ"),
+        "Source": split!(file, "/")[-1],
+        "HostName": parsed.name,
+        "HostIp": parsed.ip,
+        "Level": parsed.level,
+        "Component": parsed.component,
+        "Body": parsed.body
+      }
+
+  access_parse:
+    type: remap
+    inputs: [access]
+    drop_on_error: true
+    reroute_dropped: true
+    source: |
+      raw = to_string(.message) ?? ""
+      parsed = parse_json!(raw)
+      code = to_int(parsed.response_code) ?? 0
+      level = if code >= 500 { "ERROR" } else if code >= 400 { "WARN" } else { "INFO" }
+      ts_raw = to_string(parsed.timestamp) ?? ""
+      ts, err = parse_timestamp(ts_raw, "%Y-%m-%dT%H:%M:%S%.fZ")
+      if err != null {
+        ts, err = parse_timestamp(ts_raw, "%Y-%m-%dT%H:%M:%SZ")
+      }
+      if err != null {
+        ts = now()
+      }
+      . = {
+        "Timestamp": format_timestamp!(ts, "%Y-%m-%dT%H:%M:%S%.6fZ"),
+        "Source": "envoy-access.log",
+        "HostName": "envoy",
+        "HostIp": "",
+        "Level": level,
+        "Component": "access",
+        "Method": to_string(parsed.method) ?? "",
+        "Path": to_string(parsed.path) ?? "",
+        "Status": code,
+        "DurationUs": to_int(parsed.duration_us) ?? 0,
+        "RequestId": to_string(parsed.request_id) ?? "",
+        "Body": raw
+      }
+
+  debug_parse:
+    type: remap
+    inputs: [envoy_debug]
+    source: |
+      file = to_string(.file) ?? "envoy.log"
+      parsed, err = parse_regex(.message, r'^\[(?P<ts>[^\]]+)\]\[\d+\]\[(?P<level>[^\]]+)\]\[(?P<component>[^\]]+)\] ?(?P<body>.*)$')
+      if err == null {
+        ts, terr = parse_timestamp(parsed.ts, "%Y-%m-%d %H:%M:%S%.3f")
+        if terr != null {
+          ts, terr = parse_timestamp(parsed.ts, "%Y-%m-%d %H:%M:%S%.f")
+        }
+        if terr != null {
+          ts = now()
+        }
+        level = upcase!(parsed.level)
+        . = {
+          "Timestamp": format_timestamp!(ts, "%Y-%m-%dT%H:%M:%S%.6fZ"),
+          "Source": split!(file, "/")[-1],
+          "HostName": "envoy",
+          "HostIp": "",
+          "Level": level,
+          "Component": parsed.component,
+          "Body": parsed.body
+        }
+      } else {
+        . = {
+          "Timestamp": format_timestamp!(now(), "%Y-%m-%dT%H:%M:%S%.6fZ"),
+          "Source": "envoy.log",
+          "HostName": "envoy",
+          "HostIp": "",
+          "Level": "DEBUG",
+          "Component": "envoy",
+          "Body": to_string!(.message)
+        }
+      }
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs: [apps_parse, access_parse, debug_parse]
+    endpoint: http://clickhouse:8123
+    database: sysbench
+    table: logs_live
+    format: json_each_row
+    compression: gzip
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    batch:
+      max_bytes: 10000000
+      timeout_secs: 2
+    buffer:
+      type: memory
+      max_events: 2000
+      when_full: block
+    request:
+      concurrency: 4
+      retry_attempts: 20
+      retry_initial_backoff_secs: 1
+      retry_max_duration_secs: 60
+    healthcheck:
+      enabled: true
+
+  parse_failures:
+    type: file
+    inputs: [apps_parse.dropped, access_parse.dropped]
+    path: /var/log/vector/live-parse-failures.log
+    encoding:
+      codec: json
+
+  prometheus:
+    type: prometheus_exporter
+    inputs: [metrics]
+    address: 0.0.0.0:9598

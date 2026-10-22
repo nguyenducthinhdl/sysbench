@@ -1,0 +1,8 @@
+<clickhouse>
+    <!-- Colima is 2 GB and the default mark cache is 5 GB. Keep the server
+         inside what the VM can actually give a text-index build. -->
+    <max_server_memory_usage>1600000000</max_server_memory_usage>
+    <mark_cache_size>134217728</mark_cache_size>
+    <index_mark_cache_size>134217728</index_mark_cache_size>
+    <uncompressed_cache_size>0</uncompressed_cache_size>
+</clickhouse>

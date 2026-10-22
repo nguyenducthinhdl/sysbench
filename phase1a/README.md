@@ -16,3 +16,17 @@ phase1a/macos/driver/replay.sh a2m 1 throttled
 ```
 
 A macOS record must not be compared with a Linux record and must not go into the handbook sizing table. `host` is on every record so a mixed file is still separable.
+
+On the Mac stack, Grafana is http://localhost:3000 after `replay.sh` (or `docker-compose up -d clickhouse prometheus grafana` in `phase1a/macos`). That dashboard is for watching the smoke test, not for handbook sizing.
+
+## Live generator ingest
+
+[envoy-log-generator](../envoy-log-generator/) writes app, client, and Envoy logs. Vector tails those files into `sysbench.logs_live` (see [clickhouse/ddl-envoy.sql](clickhouse/ddl-envoy.sql)). That table is separate from `logs_hdfs`, and `reset.sql` does not drop it.
+
+```bash
+phase1a/macos/run-live.sh
+# Linux rig, after the generator is writing into ENVOY_LOG_DIR:
+ENVOY_LOG_DIR=/path/to/envoy-log-generator/logs phase1a/linux/driver/run-live.sh
+```
+
+Do not run live ingest in the same stack as `replay.sh` (shared Vector port 9598, and the HDFS replay would mix with generator traffic on the dashboards).

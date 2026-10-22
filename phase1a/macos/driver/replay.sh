@@ -52,7 +52,7 @@ mkdir -p "$(dirname "$RESULTS")" "${MACOS_DIR}/logs"
 : > "${MACOS_DIR}/logs/phase1a-parse-failures.log" || true
 
 log "starting clickhouse"
-compose up -d clickhouse
+compose up -d clickhouse prometheus grafana
 wait_clickhouse
 
 log "resetting table"

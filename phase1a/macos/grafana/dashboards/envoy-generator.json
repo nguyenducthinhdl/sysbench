@@ -1,0 +1,75 @@
+{
+  "uid": "phase1a-envoy",
+  "title": "Envoy log generator",
+  "description": "Envoy admin Prometheus stats from the integrated generator. Pair with Phase 1A ClickHouse ingest.",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "tags": ["phase1a", "envoy"],
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Downstream requests / s",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=\"ingress_http\"}[1m]))", "legendFormat": "total" },
+        { "refId": "B", "expr": "sum(rate(envoy_http_downstream_rq_xx{envoy_http_conn_manager_prefix=\"ingress_http\"}[1m])) by (envoy_response_code_class)", "legendFormat": "{{envoy_response_code_class}}xx" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "spanNulls": true } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Upstream requests / s by cluster",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(envoy_cluster_upstream_rq_total[1m])) by (envoy_cluster_name)", "legendFormat": "{{envoy_cluster_name}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 8, "spanNulls": true } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Local rate limit",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(envoy_http_local_rate_limit_rate_limited[1m])) by (envoy_local_http_ratelimit_prefix)", "legendFormat": "{{envoy_local_http_ratelimit_prefix}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "spanNulls": true } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "ClickHouse ingest of generator logs",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(ClickHouseProfileEvents_InsertedRows[1m])", "legendFormat": "inserted rows / s" },
+        { "refId": "B", "expr": "rate(ClickHouseProfileEvents_FailedInsertQuery[1m])", "legendFormat": "failed inserts / s" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 8, "spanNulls": true } },
+        "overrides": []
+      }
+    }
+  ]
+}

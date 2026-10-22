@@ -1,0 +1,53 @@
+# One engine at a time. The driver passes --profile clickhouse or --profile elasticsearch.
+# A bare `up` starts nothing. Ports stay off 8123/9200 so a Phase 1A stack can keep them.
+#
+#   columnar-fulltext/driver/gate.sh
+
+name: columnar-fulltext
+
+services:
+  clickhouse:
+    profiles: ["clickhouse"]
+    image: ${CH_IMAGE:-clickhouse/clickhouse-server:26.2}
+    environment:
+      # The 26.2 image closes the default user's network port unless a password is set.
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-columnar}
+    mem_limit: 1700m
+    ports:
+      - "18123:8123"
+      - "19000:9000"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - ch-data:/var/lib/clickhouse
+      - ./clickhouse:/sql:ro
+      - ./clickhouse/memory.xml:/etc/clickhouse-server/config.d/memory.xml:ro
+      - ../data/corpus:/var/lib/clickhouse/user_files/corpus:ro
+
+  elasticsearch:
+    profiles: ["elasticsearch"]
+    image: ${ES_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:9.5.5}
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      xpack.ml.enabled: "false"
+      ES_JAVA_OPTS: ${ES_JAVA_OPTS:--Xms512m -Xmx512m}
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+    ports:
+      - "19200:9200"
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - es-columnar-data:/usr/share/elasticsearch/data
+
+volumes:
+  ch-data:
+  es-columnar-data:

@@ -1,0 +1,40 @@
+# Overlay: envoy-log-generator + Vector tailing into ClickHouse.
+#
+#   phase1a/macos/run-live.sh
+#
+# Includes the macOS Phase 1A stack and the generator. Paths in each included
+# file stay relative to that file (Compose v2 include). Requires docker-compose 2+.
+
+include:
+  - path: docker-compose.yml
+  - path: ../../envoy-log-generator/docker-compose.yml
+
+services:
+  prometheus:
+    volumes:
+      - ./prometheus/prometheus-live.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    environment:
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+
+  vector-live:
+    image: ${VECTOR_IMAGE:-timberio/vector:latest-debian}
+    user: "0:0"
+    entrypoint: ["/usr/bin/vector"]
+    command: ["--config", "/etc/vector/live-envoy.yaml"]
+    ports:
+      - "9598:9598"
+    volumes:
+      - ../../envoy-log-generator/logs:/logs/envoy:ro
+      - ./vector/live-envoy.yaml:/etc/vector/live-envoy.yaml:ro
+      - ./logs:/var/log/vector
+      - vector-live-data:/var/lib/vector
+    depends_on:
+      - clickhouse
+      - envoy
+    restart: on-failure
+
+volumes:
+  vector-live-data:

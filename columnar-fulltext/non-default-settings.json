@@ -1,0 +1,43 @@
+{
+  "host": "macos",
+  "note": "This Mac does not apply a 16-core 64 GB cgroup and does not drop the page cache. Gate records carry host macos and cannot fill columnar-fulltext-spec section 13.",
+  "clickhouse": {
+    "image": "clickhouse/clickhouse-server:26.2",
+    "non_default": {
+      "max_server_memory_usage": 1600000000,
+      "max_insert_block_size": 65536,
+      "max_insert_threads": 1,
+      "max_threads": 2,
+      "reason": "The Colima VM has 2 GB. One insert block over the whole 1 GB prefix OOM-killed the text-index build."
+    }
+  },
+  "elasticsearch": {
+    "image": "docker.elastic.co/elasticsearch/elasticsearch:9.5.5",
+    "cluster": {
+      "discovery.type": "single-node",
+      "xpack.security.enabled": false,
+      "xpack.security.enrollment.enabled": false,
+      "xpack.security.http.ssl.enabled": false,
+      "xpack.security.transport.ssl.enabled": false,
+      "xpack.ml.enabled": false,
+      "ES_JAVA_OPTS": "-Xms512m -Xmx512m",
+      "cluster.routing.allocation.disk.threshold_enabled": false,
+      "search.allow_expensive_queries": true
+    },
+    "index": {
+      "index.mode": "logsdb_columnar",
+      "index.number_of_shards": 1,
+      "index.number_of_replicas": 0,
+      "index.refresh_interval": "1s",
+      "index.sort.field": ["host.name", "@timestamp"],
+      "index.sort.order": ["asc", "desc"],
+      "index.requests.cache.enable": false,
+      "index.queries.cache.enabled": false,
+      "attributes.type": "flattened",
+      "attributes_reason": "About 2000 attribute keys would pass the default total_fields limit of 1000. attributes is flattened and that choice is part of the record."
+    },
+    "search": {
+      "request_cache": false
+    }
+  }
+}

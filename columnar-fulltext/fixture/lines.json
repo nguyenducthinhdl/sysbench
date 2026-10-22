@@ -1,0 +1,42 @@
+[
+  {
+    "id": "needle",
+    "text": "charge failed for order 88213: upstream returned 503 zzq_s5"
+  },
+  {
+    "id": "stack",
+    "text": "java.lang.IllegalStateException: closed\n\tat c.s.S.m(S.java:1)\n\tat c.s.T.m(T.java:2)"
+  },
+  {
+    "id": "decoy-traceabc",
+    "text": "marker traceabc=1 end"
+  },
+  {
+    "id": "decoy-xxabcyy",
+    "text": "prefix xxabcyy suffix"
+  },
+  {
+    "id": "phrase",
+    "text": "upstream connection refused by peer"
+  },
+  {
+    "id": "both-needles",
+    "text": "saw zzq_pb before zzq_pa today"
+  },
+  {
+    "id": "case",
+    "text": "Error error ERROR"
+  },
+  {
+    "id": "healthcheck",
+    "text": "probe healthcheck passed"
+  },
+  {
+    "id": "underscore-digits",
+    "text": "order_88213 id zzq_s7 tail"
+  },
+  {
+    "id": "punctuation",
+    "text": "--- ::: status=503 :::"
+  }
+]

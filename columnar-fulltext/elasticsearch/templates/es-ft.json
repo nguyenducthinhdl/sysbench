@@ -1,0 +1,107 @@
+{
+  "index_patterns": [
+    "logs-sysbench-ft",
+    ".ds-logs-sysbench-ft-*"
+  ],
+  "data_stream": {},
+  "priority": 500,
+  "template": {
+    "settings": {
+      "index.mode": "logsdb_columnar",
+      "index.number_of_shards": 1,
+      "index.number_of_replicas": 0,
+      "index.refresh_interval": "1s",
+      "index.sort.field": [
+        "host.name",
+        "@timestamp"
+      ],
+      "index.sort.order": [
+        "asc",
+        "desc"
+      ],
+      "index.requests.cache.enable": false,
+      "index.queries.cache.enabled": false,
+      "analysis": {
+        "analyzer": {
+          "default": {
+            "type": "custom",
+            "tokenizer": "sysbench_split"
+          },
+          "sysbench_token": {
+            "type": "custom",
+            "tokenizer": "sysbench_split"
+          }
+        },
+        "tokenizer": {
+          "sysbench_split": {
+            "type": "pattern",
+            "pattern": "[^0-9A-Za-z]+"
+          }
+        }
+      }
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "cluster": {
+          "type": "keyword"
+        },
+        "namespace": {
+          "type": "keyword"
+        },
+        "app": {
+          "type": "keyword"
+        },
+        "pod": {
+          "type": "keyword"
+        },
+        "container": {
+          "type": "keyword"
+        },
+        "host": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            }
+          }
+        },
+        "level": {
+          "type": "keyword"
+        },
+        "trace_id": {
+          "type": "keyword"
+        },
+        "span_id": {
+          "type": "keyword"
+        },
+        "http": {
+          "properties": {
+            "method": {
+              "type": "keyword"
+            },
+            "path": {
+              "type": "keyword"
+            },
+            "status": {
+              "type": "integer"
+            }
+          }
+        },
+        "duration_ms": {
+          "type": "integer"
+        },
+        "attributes": {
+          "type": "flattened"
+        },
+        "status": {
+          "type": "keyword"
+        },
+        "body": {
+          "type": "match_only_text"
+        }
+      }
+    }
+  }
+}

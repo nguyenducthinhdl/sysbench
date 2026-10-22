@@ -52,3 +52,19 @@ curl -sS -X POST localhost:10000/booking \
 ```
 
 A third client is another service like `client-1`, with its own `CLIENT_NAME` and `LOG_PATH`. Set `CLIENT_COUNT` on every client to the new total so the offered rate stays 100 to 120 per route.
+
+## Ingest into Phase 1A ClickHouse
+
+To tail these files into ClickHouse instead of only writing them to disk, use the Phase 1A live overlay. That starts this compose file in the same project as ClickHouse, Prometheus, and Grafana, with Vector reading `logs/` into `sysbench.logs_live`.
+
+```bash
+phase1a/macos/run-live.sh
+```
+
+On the Linux rig, start this generator first (`./run.sh`), then:
+
+```bash
+ENVOY_LOG_DIR=$PWD/logs phase1a/linux/driver/run-live.sh
+```
+
+Do not run `./run.sh` and `phase1a/macos/run-live.sh` at the same time: they both bind 10000 and 9901. Stop this stack (`docker compose down`) before the Phase 1A overlay.

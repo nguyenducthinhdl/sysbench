@@ -1,0 +1,222 @@
+{
+  "uid": "phase1a-clickhouse",
+  "title": "Phase 1A ClickHouse ingest",
+  "description": "ClickHouse 26.2 Prometheus metrics for the Phase 1A arm matrix. Not a sizing source.",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "tags": ["phase1a", "clickhouse"],
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Uptime",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "ClickHouseAsyncMetrics_Uptime", "legendFormat": "uptime" }],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "decimals": 0 },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "none" }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Inserted rows / s",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "rate(ClickHouseProfileEvents_InsertedRows[1m])" }],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "decimals": 0 },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Queries / s",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "rate(ClickHouseProfileEvents_Query[1m])" }],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "decimals": 1 },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "area" }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Failed inserts / s",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "rate(ClickHouseProfileEvents_FailedInsertQuery[1m])" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Max parts in a partition",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "ClickHouseAsyncMetrics_MaxPartCountForPartition" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 200 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Memory tracking",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "ClickHouseMetrics_MemoryTracking" }],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "decimals": 1 },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "area" }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Ingest: rows and bytes",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(ClickHouseProfileEvents_InsertedRows[1m])", "legendFormat": "rows / s" },
+        { "refId": "B", "expr": "rate(ClickHouseProfileEvents_InsertedBytes[1m])", "legendFormat": "bytes / s" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "spanNulls": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "bytes / s" }, "properties": [{ "id": "unit", "value": "Bps" }, { "id": "custom.axisPlacement", "value": "right" }] },
+          { "matcher": { "id": "byName", "options": "rows / s" }, "properties": [{ "id": "unit", "value": "ops" }] }
+        ]
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Inserts vs delayed / rejected",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(ClickHouseProfileEvents_InsertQuery[1m])", "legendFormat": "insert queries / s" },
+        { "refId": "B", "expr": "rate(ClickHouseProfileEvents_FailedInsertQuery[1m])", "legendFormat": "failed inserts / s" },
+        { "refId": "C", "expr": "rate(ClickHouseProfileEvents_DelayedInserts[1m])", "legendFormat": "delayed inserts / s" },
+        { "refId": "D", "expr": "rate(ClickHouseProfileEvents_RejectedInserts[1m])", "legendFormat": "rejected inserts / s" },
+        { "refId": "E", "expr": "rate(ClickHouseProfileEvents_AsyncInsertQuery[1m])", "legendFormat": "async insert queries / s" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 8, "spanNulls": true } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Merges and parts",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(ClickHouseProfileEvents_Merge[1m])", "legendFormat": "merges / s" },
+        { "refId": "B", "expr": "rate(ClickHouseProfileEvents_MergedRows[1m])", "legendFormat": "merged rows / s" },
+        { "refId": "C", "expr": "ClickHouseMetrics_BackgroundMergesAndMutationsPoolTask", "legendFormat": "merge pool tasks" },
+        { "refId": "D", "expr": "ClickHouseAsyncMetrics_MaxPartCountForPartition", "legendFormat": "max parts / partition" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 8, "spanNulls": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "merged rows / s" }, "properties": [{ "id": "unit", "value": "ops" }, { "id": "custom.axisPlacement", "value": "right" }] }
+        ]
+      }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Queries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(ClickHouseProfileEvents_Query[1m])", "legendFormat": "queries / s" },
+        { "refId": "B", "expr": "rate(ClickHouseProfileEvents_SelectQuery[1m])", "legendFormat": "selects / s" },
+        { "refId": "C", "expr": "rate(ClickHouseProfileEvents_FailedQuery[1m])", "legendFormat": "failed / s" },
+        { "refId": "D", "expr": "ClickHouseMetrics_Query", "legendFormat": "in flight" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 8, "spanNulls": true } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "Memory",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "ClickHouseMetrics_MemoryTracking", "legendFormat": "tracking" },
+        { "refId": "B", "expr": "ClickHouseAsyncMetrics_MemoryResident", "legendFormat": "RSS" },
+        { "refId": "C", "expr": "ClickHouseAsyncMetrics_OSMemoryTotal", "legendFormat": "OS total" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 8, "spanNulls": true } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Connections",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "ClickHouseMetrics_HTTPConnection", "legendFormat": "HTTP" },
+        { "refId": "B", "expr": "ClickHouseMetrics_TCPConnection", "legendFormat": "TCP" },
+        { "refId": "C", "expr": "ClickHouseMetrics_Query", "legendFormat": "queries in flight" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 8, "spanNulls": true } },
+        "overrides": []
+      }
+    }
+  ]
+}

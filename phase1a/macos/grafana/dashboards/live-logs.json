@@ -1,0 +1,68 @@
+{
+  "uid": "phase1a-live-logs",
+  "title": "Live generator logs (ClickHouse)",
+  "description": "sysbench.logs_live rows from Vector tailing envoy-log-generator.",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "tags": ["phase1a", "clickhouse", "logs"],
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Rows / s by source",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL 5 SECOND) AS time, Source AS metric, count() AS value FROM sysbench.logs_live WHERE Timestamp >= now() - INTERVAL 15 MINUTE GROUP BY time, metric ORDER BY time"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Rows / s by level",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL 5 SECOND) AS time, Level AS metric, count() AS value FROM sysbench.logs_live WHERE Timestamp >= now() - INTERVAL 15 MINUTE GROUP BY time, metric ORDER BY time"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Recent ERROR / WARN",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "SELECT Timestamp, Source, HostName, Level, Component, Status, Path, substring(Body, 1, 300) AS Body FROM sysbench.logs_live WHERE Level IN ('ERROR', 'WARN') ORDER BY Timestamp DESC LIMIT 100"
+        }
+      ]
+    }
+  ]
+}
