@@ -1,0 +1,25 @@
+name: test-scenario-1
+storage:
+  - endpoint: http://localhost:8000
+    auth:
+      type: basic
+      username: admin
+      password: admin
+    protocol: http
+configs:
+  min_size: 100
+  max_size: 200000
+  concurrent: 100
+  duration: 60
+scenario:
+  - name: linear-all
+    from: 0
+    to: 60    
+    type: linear    
+    rps_min_concurrent: 100
+    rps_max_concurrent: 100
+    error_rate: 0.01
+    query_rate: 1 # 1 queries per minute
+    
+    
+    
