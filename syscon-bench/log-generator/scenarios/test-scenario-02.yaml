@@ -1,56 +1,71 @@
-name: test-scenario-1
+# Units are frozen in syscon-bench/docs/contract.md.
+# duration and time_stamp are seconds from the start.
+# The run is 0 -> each time_stamp in order -> duration.
+# The last time_stamp equals duration. A segment covers [previous boundary, time_stamp).
+# rps_min_concurrent and rps_max_concurrent: offered events per second, process-wide.
+# concurrent: ingest workers. Identities are a pool of 1000, not processes.
+# error_rate: fraction of events marked log-severity error and status-code 500.
+# query_rate: queries per minute.
+# min_size and max_size: message bytes.
+# spike holds rps_max_concurrent for the whole window. spike-03 holds 100
+# events/s after linear-02 held 2000. rps_min_concurrent is not the held rate.
+# dashboard.endpoint receives the client metrics (the bench_* series).
+
+name: test-scenario-02
 storage:
-  - endpoint: http://localhost:8000
+  - name: blackhole
+    endpoint: http://localhost:8000
+    protocol: http
     auth:
       type: basic
       username: admin
       password: admin
+dashboard:
+  - name: dashboard-01
+    endpoint: http://localhost:8001
     protocol: http
+    auth:
+      type: basic
+      username: admin
+      password: admin
 configs:
   min_size: 100
   max_size: 200000
   concurrent: 100
-  duration: 60
+  duration: 3600 # 1 hour
 scenario:
-  - name: linear-01 
-    from: 0
-    to: 1    
-    type: linear    
+  - name: linear-01
+    time_stamp: 60 # from 0 to 60 seconds
+    type: linear
     rps_min_concurrent: 100
     rps_max_concurrent: 100
     error_rate: 0.01
-    query_rate: 1 # 10 queries per minutes
+    query_rate: 1
   - name: spike-01
-    from: 1
-    to: 4
+    time_stamp: 240 # from 60 to 240 seconds
     type: spike
     rps_min_concurrent: 100
     rps_max_concurrent: 1000
     error_rate: 0.01
-    query_rate: 100 # 100 queries per minutes
+    query_rate: 100
   - name: spike-02
-    from: 4
-    to: 30
+    time_stamp: 1800 # from 240 to 1800 seconds
     type: spike
     rps_min_concurrent: 1000
     rps_max_concurrent: 2000
     error_rate: 0.1
-    query_rate: 100 # 10 queries per minutes
+    query_rate: 100
   - name: linear-02
-    from: 30
-    to: 50
+    time_stamp: 3000 # from 1800 to 3000 seconds
     type: linear
     rps_min_concurrent: 2000
     rps_max_concurrent: 2000
     error_rate: 0.01
-    query_rate: 100 # 100 queries per minutes
+    query_rate: 100
   - name: spike-03
-    from: 50
-    to: 60
+    time_stamp: 3600 # from 3000 to 3600 seconds
     type: spike
     rps_min_concurrent: 2000
     rps_max_concurrent: 100
     error_rate: 0.01
-    query_rate: 100 # 100 queries per minutes
-    
-    
+    query_rate: 100

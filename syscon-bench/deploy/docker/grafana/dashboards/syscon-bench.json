@@ -1,0 +1,280 @@
+{
+  "uid": "syscon-bench",
+  "title": "Syscon bench",
+  "description": "Client ingest and query series plus storage CPU, RAM, and disk. One engine profile is running.",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "tags": ["syscon-bench"],
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Ingest events/s",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(rate(bench_ingest_events_total[1m]))" }],
+      "fieldConfig": { "defaults": { "unit": "ops", "decimals": 1 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "area" }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Ingest bytes/s",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(rate(bench_ingest_bytes_total[1m]))" }],
+      "fieldConfig": { "defaults": { "unit": "Bps", "decimals": 0 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "area" }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Ingest errors/s",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(rate(bench_ingest_errors_total[1m]))" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Accepted events",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(bench_ingest_events_total)" }],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "area" }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Query errors/s",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(rate(bench_query_errors_total[1m]))" }],
+      "fieldConfig": { "defaults": { "unit": "ops", "decimals": 2 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "none" }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Query p99",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{
+        "refId": "A",
+        "expr": "histogram_quantile(0.99, sum by (le) (rate(bench_query_duration_seconds_bucket[1m])))"
+      }],
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 3 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "area" }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Ingest",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (storage) (rate(bench_ingest_events_total[1m]))", "legendFormat": "{{storage}} events/s" },
+        { "refId": "B", "expr": "sum by (storage) (rate(bench_ingest_bytes_total[1m]))", "legendFormat": "{{storage}} bytes/s" },
+        { "refId": "C", "expr": "sum by (storage) (rate(bench_ingest_errors_total[1m]))", "legendFormat": "{{storage}} errors/s" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "spanNulls": true } },
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": ".*bytes/s" }, "properties": [{ "id": "unit", "value": "Bps" }, { "id": "custom.axisPlacement", "value": "right" }] },
+          { "matcher": { "id": "byRegexp", "options": ".*events/s" }, "properties": [{ "id": "unit", "value": "ops" }] }
+        ]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Query latency",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le, query_class) (rate(bench_query_duration_seconds_bucket[1m])))", "legendFormat": "p50 {{query_class}}" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le, query_class) (rate(bench_query_duration_seconds_bucket[1m])))", "legendFormat": "p99 {{query_class}}" },
+        { "refId": "C", "expr": "sum by (query_class) (rate(bench_query_errors_total[1m]))", "legendFormat": "{{query_class}} errors/s" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 8, "spanNulls": true } },
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": ".*errors/s" }, "properties": [{ "id": "unit", "value": "ops" }, { "id": "custom.axisPlacement", "value": "right" }] }
+        ]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Storage CPU",
+      "description": "ClickHouse normalized user CPU, Elasticsearch process CPU percent, or the Loki/VictoriaLogs process CPU. One profile is up, so one series is present.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "max(ClickHouseAsyncMetrics_OSUserTimeNormalized)", "legendFormat": "clickhouse user cpu" },
+        { "refId": "B", "expr": "max(elasticsearch_process_cpu_percent)", "legendFormat": "elasticsearch cpu %" },
+        { "refId": "C", "expr": "sum by (job) (rate(process_cpu_seconds_total{job=~\"loki|victorialogs\"}[1m]))", "legendFormat": "{{job}} cpu" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "spanNulls": true } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Storage RAM",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "max(ClickHouseAsyncMetrics_MemoryResident)", "legendFormat": "clickhouse RSS" },
+        { "refId": "B", "expr": "sum(elasticsearch_jvm_memory_used_bytes{area=\"heap\"})", "legendFormat": "elasticsearch heap" },
+        { "refId": "C", "expr": "sum by (job) (process_resident_memory_bytes{job=~\"loki|victorialogs\"})", "legendFormat": "{{job}} RSS" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "spanNulls": true } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "cAdvisor CPU",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name!=\"\"}[1m]))", "legendFormat": "{{name}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 8, "spanNulls": true } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "cAdvisor RAM",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (name) (container_memory_working_set_bytes{name!=\"\"})", "legendFormat": "{{name}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 8, "spanNulls": true } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 40,
+      "type": "timeseries",
+      "title": "Vector",
+      "description": "Present when the generator sidecar is running. Sent is handed to the sink. Discarded and the buffer explain the gap versus stored rows.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(vector_component_sent_events_total{component_kind=\"sink\"}[1m]))", "legendFormat": "sent/s" },
+        { "refId": "B", "expr": "sum(rate(vector_component_discarded_events_total[1m]))", "legendFormat": "discarded/s" },
+        { "refId": "C", "expr": "max(vector_buffer_events)", "legendFormat": "buffer events" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "spanNulls": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "buffer events" }, "properties": [{ "id": "custom.axisPlacement", "value": "right" }] }
+        ]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 41,
+      "type": "timeseries",
+      "title": "ClickHouse inserted rows",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "max(rate(ClickHouseProfileEvents_InsertedRows[1m]))", "legendFormat": "inserted rows/s" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "spanNulls": true } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 50,
+      "type": "stat",
+      "title": "Disk used",
+      "description": "ClickHouse DiskUsed for the default disk. Elasticsearch data bytes and the storage container filesystem are the fallbacks.",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{
+        "refId": "A",
+        "expr": "sum(ClickHouseAsyncMetrics_DiskUsed_default) or sum(elasticsearch_filesystem_data_size_bytes - elasticsearch_filesystem_data_available_bytes) or sum(container_fs_usage_bytes{name=~\".*clickhouse.*|.*elastic.*|.*loki.*|.*victoria.*\"})"
+      }],
+      "fieldConfig": { "defaults": { "unit": "bytes", "decimals": 1 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "area" }
+    },
+    {
+      "id": 51,
+      "type": "stat",
+      "title": "Disk free",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{
+        "refId": "A",
+        "expr": "sum(ClickHouseAsyncMetrics_DiskAvailable_default) or sum(elasticsearch_filesystem_data_available_bytes)"
+      }],
+      "fieldConfig": { "defaults": { "unit": "bytes", "decimals": 1 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "area" }
+    },
+    {
+      "id": 52,
+      "type": "timeseries",
+      "title": "Storage disk",
+      "description": "Bytes used and bytes still free on the storage disk. ClickHouse reports the default disk. The split run reads these from VM2 port 9363.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum(ClickHouseAsyncMetrics_DiskUsed_default)", "legendFormat": "clickhouse used" },
+        { "refId": "B", "expr": "sum(ClickHouseAsyncMetrics_DiskAvailable_default)", "legendFormat": "clickhouse free" },
+        { "refId": "C", "expr": "sum(elasticsearch_filesystem_data_size_bytes - elasticsearch_filesystem_data_available_bytes)", "legendFormat": "elasticsearch used" },
+        { "refId": "D", "expr": "sum(elasticsearch_filesystem_data_available_bytes)", "legendFormat": "elasticsearch free" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "spanNulls": true } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    }
+  ]
+}

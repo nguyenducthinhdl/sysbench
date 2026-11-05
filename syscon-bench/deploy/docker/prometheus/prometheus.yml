@@ -1,0 +1,32 @@
+# One profile runs one engine. Targets that are not in this profile stay down.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # The bench POSTs client series here. GET /metrics is the latest exposition.
+  - job_name: dashboard
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["dashboard:8001"]
+
+  # Same port Phase 1A scrapes.
+  - job_name: clickhouse
+    static_configs:
+      - targets: ["clickhouse:9363"]
+
+  - job_name: elasticsearch
+    static_configs:
+      - targets: ["elasticsearch-exporter:9114"]
+
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+
+  - job_name: victorialogs
+    static_configs:
+      - targets: ["victorialogs:9428"]
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]

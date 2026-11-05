@@ -1,0 +1,98 @@
+# Generator host. ClickHouse stays on the VM.
+# preload.sh writes the file and ingests it. run.sh starts scenario 01 only
+# after that check. `docker compose up` does not start either one: writer and
+# bench are profiles.
+
+name: syscon-bench-generator
+
+services:
+  vector:
+    image: ${VECTOR_IMAGE:-timberio/vector:0.46.1-debian}
+    user: "0"
+    environment:
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:?}
+      CH_USER: ${CH_USER:?}
+      CH_PASSWORD: ${CH_PASSWORD:?}
+    volumes:
+      - ${VECTOR_CONFIG:?}:/etc/vector/vector.yaml:ro
+      - preload:/data
+    command: ["--config", "/etc/vector/vector.yaml"]
+    ports:
+      - "8686:8686"
+      - "9598:9598"
+
+  dashboard:
+    image: syscon-bench:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    entrypoint: ["/usr/local/bin/syscon-bench"]
+    command:
+      - dashboard
+      - --addr
+      - :8001
+      - --username
+      - ${CH_USER:?}
+      - --password
+      - ${CH_PASSWORD:?}
+    ports:
+      - "8001:8001"
+
+  prometheus:
+    image: ${PROM_IMAGE:-prom/prometheus:v2.55.1}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.generated.yml:/etc/prometheus/prometheus.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:11.3.1}
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_DEFAULT_THEME: dark
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/syscon-bench.json
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+  writer:
+    profiles: ["write"]
+    image: syscon-bench:local
+    entrypoint: ["/usr/local/bin/syscon-bench"]
+    volumes:
+      - preload:/data
+      - ../../log-generator/scenarios:/scenarios:ro
+
+  bench:
+    profiles: ["bench"]
+    image: syscon-bench:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    network_mode: "service:vector"
+    depends_on:
+      - vector
+    environment:
+      STORAGE_NAME: clickhouse
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:?}
+      VIA: vector
+      VECTOR_ENDPOINT: http://127.0.0.1:8686
+      DASHBOARD_UPSTREAM: dashboard:8001
+      SCENARIO: ${SCENARIO:-test-scenario-01.yaml}
+    volumes:
+      - ../../log-generator/scenarios:/scenarios:ro
+
+volumes:
+  preload:

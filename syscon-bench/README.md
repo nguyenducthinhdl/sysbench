@@ -22,7 +22,7 @@ Get from survey: https://docs.google.com/spreadsheets/d/1eNMPQrv7KRI6Jv5Mj-81oru
         - ip-address
         - host-name
         - log-severity
-        - status
+        - status-code
         - component
         - trace-id
         - version
@@ -32,10 +32,19 @@ Get from survey: https://docs.google.com/spreadsheets/d/1eNMPQrv7KRI6Jv5Mj-81oru
 - Number of mocking pod/instances to generate is about 1000
 - The message will be a Structured JSON (60%), Access Log format (10%), Plain text and natural error message (10%), Stack traces / exception dumps (5%), Audit/security events (5%)
 
-3. Searching Pattern
+3. Querry Pattern for Search
 - Full-text search: 30%
 - Exact-Match: Filtering by service, time, severity, status, or other fields: 30%
 - Filtering by service, time, severity, status, or other fields: 40%
+
+## Scenario clock
+
+`duration` and each segment `time_stamp` are seconds from the start of the run.
+The generator walks one chain:
+
+`0` → `time_stamp` of the first segment → … → `time_stamp` of the last segment → `duration`
+
+The last `time_stamp` equals `duration`. The first segment covers the seconds from `0` up to its `time_stamp`. Each following segment covers the seconds from the previous `time_stamp` up to its own `time_stamp`.
 
 ## Metrics
 

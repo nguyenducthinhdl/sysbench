@@ -1,0 +1,78 @@
+# One-shot read of the preload file. The generator script stops Vector after
+# syscon.logs and system.asynchronous_insert_log agree. This is not the live scenario.
+
+data_dir: /var/lib/vector
+
+sources:
+  preload:
+    type: file
+    include:
+      - /data/preload.jsonl
+    read_from: beginning
+    framing:
+      method: newline_delimited
+      newline_delimited:
+        max_length: 2097152
+    decoding:
+      codec: json
+
+  internal:
+    type: internal_metrics
+    scrape_interval_secs: 5
+
+transforms:
+  contract:
+    type: remap
+    inputs: [preload]
+    source: |
+      . = {
+        "message": string!(.message),
+        "uuid": string!(.uuid),
+        "instance-id": string!(."instance-id"),
+        "ip-address": string!(."ip-address"),
+        "host-name": string!(."host-name"),
+        "log-severity": string!(."log-severity"),
+        "status-code": to_int!(."status-code"),
+        "component": string!(.component),
+        "trace-id": string!(."trace-id"),
+        "version": string!(.version),
+        "service": string!(.service),
+        "time": string!(.time),
+        "jira-id": string!(."jira-id"),
+        "group-id": string!(."group-id"),
+        "external-01": string!(."external-01"),
+        "external-02": string!(."external-02"),
+        "external-03": string!(."external-03"),
+        "binary-field": string!(."binary-field")
+      }
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs: [contract]
+    endpoint: ${STORAGE_ENDPOINT}
+    database: syscon
+    table: logs
+    auth:
+      strategy: basic
+      user: ${CH_USER}
+      password: ${CH_PASSWORD}
+    skip_unknown_fields: true
+    date_time_best_effort: true
+    compression: none
+    batch:
+      max_events: 10000
+      timeout_secs: 1
+    buffer:
+      type: memory
+      max_events: 50000
+      when_full: block
+    request:
+      retry_attempts: 10
+    healthcheck:
+      enabled: true
+
+  prometheus:
+    type: prometheus_exporter
+    inputs: [internal]
+    address: 0.0.0.0:9598

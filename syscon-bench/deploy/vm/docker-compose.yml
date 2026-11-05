@@ -1,0 +1,33 @@
+# ClickHouse on the Linux VM. The generator is not started here.
+# install-clickhouse.sh sets CH_USER and CH_PASSWORD from the scenario auth.
+
+name: syscon-bench-vm
+
+services:
+  clickhouse:
+    image: ${CH_IMAGE:-clickhouse/clickhouse-server:26.2}
+    container_name: syscon-clickhouse
+    environment:
+      CLICKHOUSE_USER: ${CH_USER:?set CH_USER}
+      CLICKHOUSE_PASSWORD: ${CH_PASSWORD:?set CH_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      CLICKHOUSE_DB: syscon
+    ports:
+      - "8123:8123"
+      - "9363:9363"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - ch-data:/var/lib/clickhouse
+      - ./clickhouse/prometheus.xml:/etc/clickhouse-server/config.d/prometheus.xml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8123/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+volumes:
+  ch-data:
