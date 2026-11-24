@@ -120,8 +120,8 @@
 
 <!-- SLIDE 3: CPU / mem -->
 <section class="slide" id="slide-resources">
-  <h1>Peak CPU and memory (spikes hour)</h1>
-  <p class="sub">Hour peaks from Prometheus. VL mem estimated from 5-min smoke scaled ×1.15.</p>
+  <h1>Peak CPU and memory</h1>
+  <p class="sub">Hour peaks. Light = steady, solid = spikes. CH/ES steady from 5-min smoke (hour had no series). VL spikes mem estimated (~0.23 GB).</p>
   <div class="grid2">
     <div class="chart-wrap">
       <div class="chart-title">Peak CPU (cores)</div>
@@ -132,37 +132,53 @@
       <svg id="mem-bars" viewBox="0 0 700 300"></svg>
     </div>
   </div>
+  <div class="legend">
+    <span><span class="swatch" style="background:#2f6fed;opacity:0.35"></span>Steady</span>
+    <span><span class="swatch" style="background:#2f6fed"></span>Spikes</span>
+  </div>
 </section>
 
 <!-- SLIDE 4: query p99 -->
 <section class="slide" id="slide-query">
-  <h1>Query p99 by class (spikes)</h1>
-  <p class="sub">Client histogram p99 for the spikes hour (ms). CH/ES 5M · Loki/VL 1M.</p>
+  <h1>Query p99 by class</h1>
+  <p class="sub">Client histogram p99 (ms) for steady and spikes hours. CH/ES 5M · Loki/VL 1M. Light = steady, solid = spikes.</p>
   <div class="grid2">
-    <div class="chart-wrap"><div class="chart-title">full-text</div><svg id="p99-ft" viewBox="0 0 700 260"></svg></div>
-    <div class="chart-wrap"><div class="chart-title">exact</div><svg id="p99-ex" viewBox="0 0 700 260"></svg></div>
-    <div class="chart-wrap"><div class="chart-title">filter</div><svg id="p99-fi" viewBox="0 0 700 260"></svg></div>
-    <div class="chart-wrap"><div class="chart-title">aggregation</div><svg id="p99-ag" viewBox="0 0 700 260"></svg></div>
+    <div class="chart-wrap"><div class="chart-title">full-text</div><svg id="p99-ft" viewBox="0 0 700 280"></svg></div>
+    <div class="chart-wrap"><div class="chart-title">exact</div><svg id="p99-ex" viewBox="0 0 700 280"></svg></div>
+    <div class="chart-wrap"><div class="chart-title">filter</div><svg id="p99-fi" viewBox="0 0 700 280"></svg></div>
+    <div class="chart-wrap"><div class="chart-title">aggregation</div><svg id="p99-ag" viewBox="0 0 700 280"></svg></div>
+  </div>
+  <div class="legend">
+    <span><span class="swatch" style="background:#2f6fed;opacity:0.35"></span>Steady</span>
+    <span><span class="swatch" style="background:#2f6fed"></span>Spikes</span>
+    <span style="margin-left:12px"><span class="swatch" style="background:#2f6fed"></span>CH</span>
+    <span><span class="swatch" style="background:#1f7a4c"></span>ES</span>
+    <span><span class="swatch" style="background:#c47a12"></span>Loki</span>
+    <span><span class="swatch" style="background:#7a3db8"></span>VL</span>
   </div>
 </section>
 
 <!-- SLIDE 5: disk measured -->
 <section class="slide" id="slide-disk-measured">
-  <h1>Disk after spikes — measured</h1>
-  <p class="sub">As-run: CH/ES 5M preload, Loki/VL 1M. Not row-normalized.</p>
+  <h1>Disk — measured</h1>
+  <p class="sub">As-run after each hour. CH/ES 5M, Loki/VL 1M. Light = steady, solid = spikes.</p>
   <div class="chart-wrap">
     <svg id="disk-measured" viewBox="0 0 1400 420"></svg>
+  </div>
+  <div class="legend">
+    <span><span class="swatch" style="background:#2f6fed;opacity:0.35"></span>Steady</span>
+    <span><span class="swatch" style="background:#2f6fed"></span>Spikes</span>
   </div>
 </section>
 
 <!-- SLIDE 6: disk @5M -->
 <section class="slide" id="slide-disk-scaled">
-  <h1>Disk after spikes — @5M scale</h1>
-  <p class="sub">Loki/VL measured ×5 for equal-row comparison with CH/ES. Not a measured 5M Loki/VL run.</p>
+  <h1>Disk — @5M scale</h1>
+  <p class="sub">Loki/VL ×5 for equal-row comparison with CH/ES. Light = steady, solid = spikes. Not a measured 5M Loki/VL run.</p>
   <div class="chart-wrap">
     <svg id="disk-scaled" viewBox="0 0 1400 420"></svg>
   </div>
-  <div class="note">Order @5M: VL ~1.15 GB &lt; ES 1.54 GB &lt; CH 2.00 GB &lt; Loki ~2.34 GB.</div>
+  <div class="note">Spikes @5M order: VL ~1.15 GB &lt; ES 1.54 GB &lt; CH 2.00 GB &lt; Loki ~2.34 GB.</div>
 </section>
 
 <script>
@@ -191,6 +207,7 @@ function legend(el) {
 
 function lineChart(svgId, series, yMax) {
   const svg = document.getElementById(svgId);
+  if (!svg) return;
   const W = 700, H = 280, pad = { t: 16, r: 16, b: 36, l: 44 };
   const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   const x = i => pad.l + (i / (MIN.length - 1)) * iw;
@@ -215,6 +232,7 @@ function lineChart(svgId, series, yMax) {
 
 function barChart(svgId, labels, values, colors, yMax, suffix) {
   const svg = document.getElementById(svgId);
+  if (!svg) return;
   const vb = svg.viewBox.baseVal;
   const W = vb.width, H = vb.height;
   const pad = { t: 24, r: 24, b: 48, l: 56 };
@@ -241,17 +259,65 @@ function barChart(svgId, labels, values, colors, yMax, suffix) {
   svg.innerHTML = g;
 }
 
-legend(document.getElementById("engine-legend"));
+/** Grouped bars: valuesA = steady, valuesB = spikes (same labels/colors). */
+function groupedBarChart(svgId, labels, valuesA, valuesB, colors, yMax, suffix) {
+  const svg = document.getElementById(svgId);
+  if (!svg) return;
+  const vb = svg.viewBox.baseVal;
+  const W = vb.width, H = vb.height;
+  const pad = { t: 28, r: 16, b: 48, l: 48 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const n = labels.length;
+  const gap = 22;
+  const group = (iw - gap * (n - 1)) / n;
+  const bw = group * 0.42;
+  const y = v => pad.t + ih - (v / yMax) * ih;
+  let g = "";
+  for (let i = 0; i <= 4; i++) {
+    const yy = pad.t + (ih * i) / 4;
+    const val = yMax * (1 - i / 4);
+    g += `<line x1="${pad.l}" y1="${yy}" x2="${W-pad.r}" y2="${yy}" stroke="rgba(26,29,35,0.1)" />`;
+    g += `<text x="${pad.l-8}" y="${yy+4}" text-anchor="end" font-size="11" fill="#5c6570">${val % 1 ? val.toFixed(0) : val}</text>`;
+  }
+  labels.forEach((lab, i) => {
+    const gx = pad.l + i * (group + gap);
+    const a = valuesA[i], b = valuesB[i];
+    const c = colors[i];
+    g += `<rect x="${gx}" y="${y(a)}" width="${bw}" height="${ih * (a / yMax)}" rx="4" fill="${c}" fill-opacity="0.35" />`;
+    g += `<rect x="${gx + bw + 4}" y="${y(b)}" width="${bw}" height="${ih * (b / yMax)}" rx="4" fill="${c}" fill-opacity="0.92" />`;
+    g += `<text x="${gx + bw/2}" y="${y(a) - 6}" text-anchor="middle" font-size="11" fill="#5c6570">${a}</text>`;
+    g += `<text x="${gx + bw + 4 + bw/2}" y="${y(b) - 6}" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1d23">${b}</text>`;
+    g += `<text x="${gx + group/2}" y="${H - 16}" text-anchor="middle" font-size="14" fill="#5c6570">${lab}</text>`;
+  });
+  svg.innerHTML = g;
+}
+
+const legendEl = document.getElementById("engine-legend");
+if (legendEl) legend(legendEl);
 lineChart("steady-ingest", STEADY, 100);
 lineChart("spikes-ingest", SPIKES, 240);
-barChart("cpu-bars", SHORT, [0.67, 0.84, 3.61, 0.68], LONG.map(n => COLORS[n]), 4, "");
-barChart("mem-bars", SHORT, [1.32, 0.66, 9.38, 0.23], LONG.map(n => COLORS[n]), 10, "");
-barChart("p99-ft", SHORT, [41.4, 160.5, 41.0, 161.3], LONG.map(n => COLORS[n]), 180, "");
-barChart("p99-ex", SHORT, [123.4, 99.6, 113.1, 99.6], LONG.map(n => COLORS[n]), 140, "");
-barChart("p99-fi", SHORT, [24.6, 19.8, 24.6, 19.6], LONG.map(n => COLORS[n]), 40, "");
-barChart("p99-ag", SHORT, [37.4, 108.5, 37.6, 102.7], LONG.map(n => COLORS[n]), 120, "");
-barChart("disk-measured", LONG, [2.0, 1.54, 0.47, 0.23], LONG.map(n => COLORS[n]), 2.4, " GB");
-barChart("disk-scaled", LONG, [2.0, 1.54, 2.34, 1.15], LONG.map(n => COLORS[n]), 2.6, " GB");
+const ENG_COLORS = LONG.map(n => COLORS[n]);
+// CH/ES steady CPU/mem: hour had no series → 5-min smoke. Others: measured hour.
+groupedBarChart("cpu-bars", SHORT, [0.90, 0.46, 3.63, 1.65], [0.67, 0.84, 3.61, 0.68], ENG_COLORS, 4, "");
+groupedBarChart("mem-bars", SHORT, [1.34, 0.66, 8.36, 0.19], [1.32, 0.66, 9.38, 0.23], ENG_COLORS, 10, "");
+const P99_STEADY = {
+  ft: [37.9, 92.4, 35.8, 92.1],
+  ex: [99.9, 75.3, 99.5, 75.5],
+  fi: [24.5, 7.0, 24.1, 7.6],
+  ag: [24.7, 42.3, 24.6, 44.0],
+};
+const P99_SPIKES = {
+  ft: [41.4, 160.5, 41.0, 161.3],
+  ex: [123.4, 99.6, 113.1, 99.6],
+  fi: [24.6, 19.8, 24.6, 19.6],
+  ag: [37.4, 108.5, 37.6, 102.7],
+};
+groupedBarChart("p99-ft", SHORT, P99_STEADY.ft, P99_SPIKES.ft, ENG_COLORS, 180, "");
+groupedBarChart("p99-ex", SHORT, P99_STEADY.ex, P99_SPIKES.ex, ENG_COLORS, 140, "");
+groupedBarChart("p99-fi", SHORT, P99_STEADY.fi, P99_SPIKES.fi, ENG_COLORS, 40, "");
+groupedBarChart("p99-ag", SHORT, P99_STEADY.ag, P99_SPIKES.ag, ENG_COLORS, 120, "");
+groupedBarChart("disk-measured", LONG, [1.70, 1.48, 0.37, 0.18], [2.0, 1.54, 0.47, 0.23], ENG_COLORS, 2.4, " GB");
+groupedBarChart("disk-scaled", LONG, [1.70, 1.48, 1.87, 0.91], [2.0, 1.54, 2.34, 1.15], ENG_COLORS, 2.6, " GB");
 </script>
 </body>
 </html>

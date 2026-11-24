@@ -64,26 +64,19 @@ Exact bytes: Loki `468475343 × 5 = 2342376715`; VL `230164405 × 5 = 1150822025
 
 At equal 5M scale, **VictoriaLogs stays smallest (~1.15 GB spikes)**; Elasticsearch (~1.54 GB) is next; ClickHouse (~2.00 GB) and scaled Loki (~2.34 GB) are the largest.
 
-## Resources (spikes hour peak)
+## Resources (hour peak)
 
-| Engine | CPU (cores) | Peak used mem | Disk (measured) | Disk @5M† |
-| --- | ---: | ---: | ---: | ---: |
-| ClickHouse | 0.67 | 1.32 GB | 2.00 GB | 2.00 GB |
-| ClickHouse + async_insert | 1.02 | 1.48 GB | 2.02 GB | 2.02 GB |
-| Elasticsearch | 0.84 | 0.66 GB | 1.54 GB | 1.54 GB |
-| Loki | 3.61 | 9.38 GB | 0.47 GB | ~2.34 GB |
-| VictoriaLogs | 0.68 | ~0.23 GB* | 0.23 GB | ~1.15 GB |
+| Engine | Steady CPU | Spikes CPU | Steady mem | Spikes mem | Spikes disk | Disk @5M† |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| ClickHouse | ~0.90‡ | 0.67 | ~1.34 GB‡ | 1.32 GB | 2.00 GB | 2.00 GB |
+| ClickHouse + async_insert | — | 1.02 | — | 1.48 GB | 2.02 GB | 2.02 GB |
+| Elasticsearch | ~0.46‡ | 0.84 | ~0.66 GB‡ | 0.66 GB | 1.54 GB | 1.54 GB |
+| Loki | 3.63 | 3.61 | 8.36 GB | 9.38 GB | 0.47 GB | ~2.34 GB |
+| VictoriaLogs | 1.65 | 0.68 | 0.19 GB | ~0.23 GB* | 0.23 GB | ~1.15 GB |
 
-\*VictoriaLogs spikes Peak Used Mem was `no series` in the hour report. Estimate scales the 5-minute smoke ([phase3-smoke-full-5mins.md](phase3-smoke-full-5mins.md)) by VL’s own smoke→hour growth:
+‡CH/ES steady CPU/mem: hour report had `no series`; values from 5-minute smoke ([phase3-smoke-full-5mins.md](phase3-smoke-full-5mins.md)).
 
-| | Smoke 5 min | Hour 60 min | smoke→hour |
-| --- | ---: | ---: | ---: |
-| VL steady | 164 MB | 188 MB | **×1.15** |
-| VL spikes | 197 MB | **~227 MB (est.)** | ×1.15 (applied) |
-
-Same two paths agree: `197 MB × (188/164)` and `188 MB × (197/164)` both give **~227 MB (~0.23 GB)**. For context, Loki grew more over the hour (steady ×1.34, spikes ×1.49); CH/ES spikes stayed ~flat vs their 5‑minute peaks (×0.95 / ×1.00).
-
-Steady hours for CH and ES also had `no series` for CPU/mem. From the same 5-minute smoke: CH steady ~1.34 GB / 0.90 cores; ES steady ~0.66 GB / 0.46 cores. Loki steady peak mem was 8.36 GB / 3.63 cores. VictoriaLogs steady (measured hour) was 0.19 GB / 1.65 cores.
+\*VictoriaLogs spikes Peak Used Mem was `no series`. Estimate: smoke spikes 197 MB × VL steady smoke→hour (164→188 MB, **×1.15**) ≈ **227 MB (~0.23 GB)**.
 
 ## Brief read
 
