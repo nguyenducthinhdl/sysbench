@@ -91,6 +91,22 @@ func httpStatusError(engine string, status int, body []byte) error {
 	return fmt.Errorf("%s: status %d: %s", engine, status, msg)
 }
 
+// missingStore reports that the engine has no table, stream, or data stream yet.
+func missingStore(status int, body []byte) bool {
+	if status == http.StatusNotFound {
+		return true
+	}
+	msg := strings.ToLower(string(body))
+	return strings.Contains(msg, "unknown_table") ||
+		strings.Contains(msg, "doesn't exist") ||
+		strings.Contains(msg, "does not exist") ||
+		strings.Contains(msg, "index_not_found_exception")
+}
+
+func parseInt64Body(body []byte) (int64, error) {
+	return strconv.ParseInt(strings.TrimSpace(string(body)), 10, 64)
+}
+
 // promVectorHits sums a Prometheus instant-query vector.
 // An empty result is zero hits. status other than success is an error.
 func promVectorHits(body []byte) (int, error) {
@@ -122,6 +138,50 @@ func promVectorHits(body []byte) (int, error) {
 			return 0, err
 		}
 		sum += n
+	}
+	return sum, nil
+}
+
+func promVectorInt64(body []byte) (int64, error) {
+	var parsed struct {
+		Status string `json:"status"`
+		Error  string `json:"error"`
+		Data   struct {
+			Result []struct {
+				Value []any `json:"value"`
+			} `json:"result"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return 0, err
+	}
+	if parsed.Status != "" && parsed.Status != "success" {
+		if parsed.Error == "" {
+			parsed.Error = parsed.Status
+		}
+		return 0, fmt.Errorf("%s", parsed.Error)
+	}
+	var sum int64
+	for _, series := range parsed.Data.Result {
+		if len(series.Value) < 2 {
+			continue
+		}
+		switch v := series.Value[1].(type) {
+		case string:
+			n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+			if err != nil {
+				f, ferr := strconv.ParseFloat(v, 64)
+				if ferr != nil {
+					return 0, err
+				}
+				n = int64(f)
+			}
+			sum += n
+		case float64:
+			sum += int64(v)
+		default:
+			return 0, fmt.Errorf("vector value %T", series.Value[1])
+		}
 	}
 	return sum, nil
 }

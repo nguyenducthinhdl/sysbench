@@ -1,0 +1,154 @@
+{
+  "captured_at": "2026-11-06T08:07:16Z",
+  "size_gb": 20,
+  "host": "macos",
+  "clickhouse": {
+    "ch-col": {
+      "table": "ch_col",
+      "rows": 40232000,
+      "parts": 67,
+      "uncompressed_bytes": 9061690725,
+      "total_bytes": 2645548369,
+      "inverted_bytes": 50537012,
+      "inverted_detail": [
+        {
+          "name": "idx_trace",
+          "type": "bloom_filter",
+          "data_compressed_bytes": 50519127,
+          "marks_bytes": 17885
+        }
+      ],
+      "all_columns_bytes": 2575182819,
+      "body_bytes": 292350086,
+      "remainder_bytes": 19828538,
+      "columns_bytes": {
+        "HostName": 755234,
+        "SpanId": 642758453,
+        "App": 264239,
+        "Pod": 4833224,
+        "TraceId": 1283746361,
+        "HttpPath": 7479011,
+        "HttpMethod": 1121724,
+        "Level": 9997765,
+        "HttpStatus": 13536839,
+        "Status": 1111889,
+        "Attributes": 79975917,
+        "DurationMs": 51093749,
+        "Namespace": 248586,
+        "Cluster": 241738,
+        "Container": 306606,
+        "Timestamp": 185361398,
+        "Body": 292350086
+      }
+    },
+    "ch-ft": {
+      "table": "ch_ft",
+      "rows": 40232000,
+      "parts": 44,
+      "uncompressed_bytes": 9061428923,
+      "total_bytes": 3040219106,
+      "inverted_bytes": 469484089,
+      "inverted_detail": [
+        {
+          "name": "idx_body",
+          "type": "text",
+          "data_compressed_bytes": 469477489,
+          "marks_bytes": 6600
+        }
+      ],
+      "all_columns_bytes": 2543564604,
+      "body_bytes": 282437704,
+      "remainder_bytes": 27170413,
+      "columns_bytes": {
+        "SpanId": 641136994,
+        "Container": 302327,
+        "Namespace": 241966,
+        "HttpStatus": 13788408,
+        "Body": 282437704,
+        "Timestamp": 182889914,
+        "TraceId": 1280476785,
+        "Level": 10126522,
+        "Pod": 4403503,
+        "Status": 1118992,
+        "HostName": 617565,
+        "App": 252737,
+        "HttpPath": 4764955,
+        "Cluster": 237551,
+        "Attributes": 75103994,
+        "HttpMethod": 945786,
+        "DurationMs": 44718901
+      }
+    },
+    "ch-ng": {
+      "table": "ch_ng",
+      "rows": 40232000,
+      "parts": 53,
+      "uncompressed_bytes": 9061770219,
+      "total_bytes": 4286239922,
+      "inverted_bytes": 1732300274,
+      "inverted_detail": [
+        {
+          "name": "idx_ng",
+          "type": "text",
+          "data_compressed_bytes": 1732292324,
+          "marks_bytes": 7950
+        }
+      ],
+      "all_columns_bytes": 2513596633,
+      "body_bytes": 275157231,
+      "remainder_bytes": 40343015,
+      "columns_bytes": {
+        "Body": 275157231,
+        "Level": 10188770,
+        "Timestamp": 181388584,
+        "TraceId": 1274571382,
+        "Container": 306644,
+        "Namespace": 242659,
+        "HttpStatus": 14021872,
+        "SpanId": 638171551,
+        "DurationMs": 36751701,
+        "HttpMethod": 833154,
+        "Attributes": 70660188,
+        "Cluster": 239134,
+        "HostName": 601840,
+        "Pod": 4309089,
+        "Status": 1133292,
+        "HttpPath": 4768055,
+        "App": 251487
+      }
+    },
+    "ch-scan": {
+      "table": "ch_scan",
+      "rows": 40232000,
+      "parts": 61,
+      "uncompressed_bytes": 9061531841,
+      "total_bytes": 2592657456,
+      "inverted_bytes": 0,
+      "inverted_detail": [],
+      "all_columns_bytes": 2575555931,
+      "body_bytes": 291794799,
+      "remainder_bytes": 17101525,
+      "columns_bytes": {
+        "Status": 1109096,
+        "Attributes": 79579583,
+        "App": 263086,
+        "Level": 10019131,
+        "Body": 291794799,
+        "Timestamp": 185400407,
+        "HttpMethod": 1105190,
+        "Container": 307902,
+        "Namespace": 248349,
+        "DurationMs": 50760132,
+        "HttpStatus": 13541317,
+        "TraceId": 1284915253,
+        "SpanId": 643342384,
+        "HttpPath": 7443276,
+        "HostName": 729955,
+        "Cluster": 241953,
+        "Pod": 4754118
+      }
+    }
+  },
+  "elasticsearch": {},
+  "clickhouse_version": "26.2.19.43"
+}

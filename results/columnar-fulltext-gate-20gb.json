@@ -1,0 +1,146 @@
+{
+  "passed": true,
+  "host": "macos",
+  "size_gb": 20,
+  "corpus": "20gb",
+  "versions": {
+    "clickhouse": "26.2.19.43",
+    "elasticsearch": "9.5.5"
+  },
+  "manifest_sha256": "685f428476f5b7969c5a2ffbd2938027be3774ab07f5d5310e56351a0e9f2d35",
+  "event_count": 40232000,
+  "actual_bytes": 20003328681,
+  "counts": {
+    "rows:ch_col": {
+      "expected": 40232000,
+      "clickhouse": 40232000
+    },
+    "rows:ch_ft": {
+      "expected": 40232000,
+      "clickhouse": 40232000
+    },
+    "rows:ch_ng": {
+      "expected": 40232000,
+      "clickhouse": 40232000
+    },
+    "rows:ch_scan": {
+      "expected": 40232000,
+      "clickhouse": 40232000
+    },
+    "rows:es-col": {
+      "expected": 40232000,
+      "elasticsearch": 40232000
+    },
+    "rows:es-ft": {
+      "expected": 40232000,
+      "elasticsearch": 40232000
+    },
+    "rows:es-phrase": {
+      "expected": 40232000,
+      "elasticsearch": 40232000
+    },
+    "rows:es-ng": {
+      "expected": 40232000,
+      "elasticsearch": 40232000
+    },
+    "rows:es-scan": {
+      "expected": 40232000,
+      "elasticsearch": 40232000
+    },
+    "C1:7d": {
+      "expected": 31291600,
+      "ch-col": 31291600,
+      "es-col": 31291600
+    },
+    "C2:7d": {
+      "expected": 609523,
+      "ch-col": 609523,
+      "es-col": 609523
+    },
+    "F1:7d": {
+      "expected": 312,
+      "ch-ft": 312,
+      "ch-scan": 312,
+      "es-ft": 312,
+      "es-scan": 312
+    },
+    "C1:24h": {
+      "expected": 4468584,
+      "ch-col": 4468584,
+      "es-col": 4468584
+    },
+    "C2:24h": {
+      "expected": 86586,
+      "ch-col": 86586,
+      "es-col": 86586
+    },
+    "F1:24h": {
+      "expected": 35,
+      "ch-ft": 35,
+      "ch-scan": 35,
+      "es-ft": 35,
+      "es-scan": 35
+    },
+    "C1:1h": {
+      "expected": 262974,
+      "ch-col": 262974,
+      "es-col": 262974
+    },
+    "C2:1h": {
+      "expected": 1065,
+      "ch-col": 1065,
+      "es-col": 1065
+    },
+    "F1:1h": {
+      "expected": 1,
+      "ch-ft": 1,
+      "ch-scan": 1,
+      "es-ft": 1,
+      "es-scan": 1
+    },
+    "F2:7d": {
+      "expected": 4,
+      "ch-ft": 4,
+      "ch-scan": 4,
+      "es-ft": 4,
+      "es-scan": 4
+    },
+    "F4:7d": {
+      "expected": 201,
+      "ch-ft": 201,
+      "es-ft": 201
+    },
+    "F6-token:7d": {
+      "expected": 0,
+      "ch-ft": 0,
+      "es-ft": 0
+    },
+    "F5:7d": {
+      "expected": 160928,
+      "ch-ft": 160928,
+      "es-ft": 160928,
+      "es-phrase": 160928
+    },
+    "F6:7d": {
+      "expected": 403,
+      "ch-ng": 403,
+      "ch-scan": 403,
+      "es-ng": 403,
+      "es-scan": 403
+    },
+    "F5:24h": {
+      "expected": 22986,
+      "ch-ft": 22986,
+      "es-ft": 22986,
+      "es-phrase": 22986
+    },
+    "F6:24h": {
+      "expected": 60,
+      "ch-ng": 60,
+      "ch-scan": 60,
+      "es-ng": 60,
+      "es-scan": 60
+    }
+  },
+  "queries_frozen": false
+}

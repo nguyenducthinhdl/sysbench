@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic corpus for the columnar / full-text comparison.
 
-One seeded stream. Cuts at 1, 2, 5, 10, and 20 GB are nested byte prefixes of
+One seeded stream. Cuts at 1, 2, 5, 10, 20, and 100 GB are nested byte prefixes of
 that stream, each ending on a layer boundary so every prefix still spans the
 same seven logical days. A layer is a few thousand events; timestamps inside a
 layer are sorted, and successive layers walk the week again. The file is
@@ -34,7 +34,7 @@ from pathlib import Path
 
 GENERATOR_VERSION = "1"
 GB = 1_000_000_000
-STANDARD_GB = (1, 2, 5, 10, 20)
+STANDARD_GB = (1, 2, 5, 10, 20, 100)
 UTC = timezone.utc
 START = datetime(2026, 9, 1, tzinfo=UTC)
 WINDOW = timedelta(days=7)

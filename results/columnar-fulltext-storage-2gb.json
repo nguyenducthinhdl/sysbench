@@ -1,0 +1,221 @@
+{
+  "captured_at": "2026-11-06T04:20:11Z",
+  "size_gb": 2,
+  "host": "macos",
+  "clickhouse": {
+    "ch-col": {
+      "table": "ch_col",
+      "rows": 4024000,
+      "parts": 35,
+      "uncompressed_bytes": 907194287,
+      "total_bytes": 274948912,
+      "inverted_bytes": 5056796,
+      "inverted_detail": [
+        {
+          "name": "idx_trace",
+          "type": "bloom_filter",
+          "data_compressed_bytes": 5053494,
+          "marks_bytes": 3302
+        }
+      ],
+      "all_columns_bytes": 243050813,
+      "body_bytes": 30145172,
+      "remainder_bytes": 26841303,
+      "columns_bytes": {
+        "HostName": 119817,
+        "SpanId": 58722693,
+        "App": 29316,
+        "Pod": 620326,
+        "TraceId": 117271184,
+        "HttpPath": 499153,
+        "HttpMethod": 163881,
+        "Level": 885834,
+        "HttpStatus": 1232182,
+        "Status": 104966,
+        "Attributes": 8764963,
+        "DurationMs": 6616383,
+        "Namespace": 26563,
+        "Cluster": 24833,
+        "Container": 28427,
+        "Timestamp": 17795120,
+        "Body": 30145172
+      }
+    },
+    "ch-ft": {
+      "table": "ch_ft",
+      "rows": 4024000,
+      "parts": 35,
+      "uncompressed_bytes": 906740838,
+      "total_bytes": 318712975,
+      "inverted_bytes": 51731190,
+      "inverted_detail": [
+        {
+          "name": "idx_body",
+          "type": "text",
+          "data_compressed_bytes": 51725940,
+          "marks_bytes": 5250
+        }
+      ],
+      "all_columns_bytes": 258355737,
+      "body_bytes": 31895465,
+      "remainder_bytes": 8626048,
+      "columns_bytes": {
+        "SpanId": 62737863,
+        "Container": 30495,
+        "Namespace": 28103,
+        "HttpStatus": 1322733,
+        "Body": 31895465,
+        "Timestamp": 18935537,
+        "TraceId": 125296573,
+        "Level": 932173,
+        "Pod": 664848,
+        "Status": 109269,
+        "HostName": 130870,
+        "App": 31202,
+        "HttpPath": 404505,
+        "Cluster": 26394,
+        "Attributes": 8811347,
+        "HttpMethod": 197335,
+        "DurationMs": 6801025
+      }
+    },
+    "ch-ng": {
+      "table": "ch_ng",
+      "rows": 4024000,
+      "parts": 56,
+      "uncompressed_bytes": 908047055,
+      "total_bytes": 482381605,
+      "inverted_bytes": 206457821,
+      "inverted_detail": [
+        {
+          "name": "idx_ng",
+          "type": "text",
+          "data_compressed_bytes": 206449421,
+          "marks_bytes": 8400
+        }
+      ],
+      "all_columns_bytes": 223964628,
+      "body_bytes": 29407260,
+      "remainder_bytes": 51959156,
+      "columns_bytes": {
+        "Body": 29407260,
+        "Level": 793991,
+        "Timestamp": 16689371,
+        "TraceId": 106030404,
+        "Container": 30682,
+        "Namespace": 28360,
+        "HttpStatus": 1064238,
+        "SpanId": 53091099,
+        "DurationMs": 6900155,
+        "HttpMethod": 211579,
+        "Attributes": 8087217,
+        "Cluster": 26029,
+        "HostName": 199996,
+        "Pod": 727423,
+        "Status": 109762,
+        "HttpPath": 535107,
+        "App": 31955
+      }
+    },
+    "ch-scan": {
+      "table": "ch_scan",
+      "rows": 4024000,
+      "parts": 35,
+      "uncompressed_bytes": 907194287,
+      "total_bytes": 269892116,
+      "inverted_bytes": 0,
+      "inverted_detail": [],
+      "all_columns_bytes": 243050813,
+      "body_bytes": 30145172,
+      "remainder_bytes": 26841303,
+      "columns_bytes": {
+        "Status": 104966,
+        "Attributes": 8764963,
+        "App": 29316,
+        "Level": 885834,
+        "Body": 30145172,
+        "Timestamp": 17795120,
+        "HttpMethod": 163881,
+        "Container": 28427,
+        "Namespace": 26563,
+        "DurationMs": 6616383,
+        "HttpStatus": 1232182,
+        "TraceId": 117271184,
+        "SpanId": 58722693,
+        "HttpPath": 499153,
+        "HostName": 119817,
+        "Cluster": 24833,
+        "Pod": 620326
+      }
+    }
+  },
+  "elasticsearch": {
+    "es-col": {
+      "stream": "logs-sysbench-col",
+      "docs": 4024000,
+      "store_bytes": 428980653,
+      "inverted_bytes": 11704496,
+      "stored_fields_bytes": 0,
+      "doc_values_bytes": 417093946,
+      "points_bytes": 0,
+      "norms_bytes": 0,
+      "body_inverted_bytes": 0,
+      "body_stored_bytes": 0,
+      "body_doc_values_bytes": 21795044
+    },
+    "es-ft": {
+      "stream": "logs-sysbench-ft",
+      "docs": 4024000,
+      "store_bytes": 468398443,
+      "inverted_bytes": 50735244,
+      "stored_fields_bytes": 0,
+      "doc_values_bytes": 417033063,
+      "points_bytes": 0,
+      "norms_bytes": 0,
+      "body_inverted_bytes": 39035679,
+      "body_stored_bytes": 0,
+      "body_doc_values_bytes": 21738798
+    },
+    "es-phrase": {
+      "stream": "logs-sysbench-phrase",
+      "docs": 4024000,
+      "store_bytes": 503004595,
+      "inverted_bytes": 85255805,
+      "stored_fields_bytes": 0,
+      "doc_values_bytes": 417089502,
+      "points_bytes": 0,
+      "norms_bytes": 0,
+      "body_inverted_bytes": 73568308,
+      "body_stored_bytes": 0,
+      "body_doc_values_bytes": 21887820
+    },
+    "es-ng": {
+      "stream": "logs-sysbench-ng",
+      "docs": 4024000,
+      "store_bytes": 550392277,
+      "inverted_bytes": 133537247,
+      "stored_fields_bytes": 0,
+      "doc_values_bytes": 416667984,
+      "points_bytes": 0,
+      "norms_bytes": 0,
+      "body_inverted_bytes": 121844240,
+      "body_stored_bytes": 0,
+      "body_doc_values_bytes": 21702133
+    },
+    "es-scan": {
+      "stream": "logs-sysbench-scan",
+      "docs": 4024000,
+      "store_bytes": 428860566,
+      "inverted_bytes": 11698167,
+      "stored_fields_bytes": 0,
+      "doc_values_bytes": 416956938,
+      "points_bytes": 0,
+      "norms_bytes": 0,
+      "body_inverted_bytes": 0,
+      "body_stored_bytes": 0,
+      "body_doc_values_bytes": 21793219
+    }
+  },
+  "clickhouse_version": "26.2.19.43",
+  "elasticsearch_version": "9.5.5"
+}

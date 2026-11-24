@@ -1,8 +1,10 @@
 # Deploy
 
-`VM01` is the log generator. `VM02` is ClickHouse. Grafana stays on `VM01`.
-Logs go from `VM01` to `VM02`. ClickHouse does not push metrics. Prometheus on
-`VM01` pulls them from `VM02` port 9363.
+`VM01` is the log generator. `VM02` is ClickHouse. `VM03` is the other storage
+host. Grafana stays on `VM01`. Logs go from `VM01` to `VM02`. ClickHouse does
+not push metrics. Prometheus on `VM01` pulls them from `VM02` port 9363. Phase 3
+uses `VM02` for ClickHouse and Loki, and `VM03` for Elasticsearch and
+VictoriaLogs.
 
 The checked-in scenario auth is `admin` / `admin`. Use that pair for
 `CH_USER` and `CH_PASSWORD`.

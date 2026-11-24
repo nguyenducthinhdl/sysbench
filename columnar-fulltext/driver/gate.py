@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""1 GB correctness gate.
+"""Correctness gate for one corpus prefix.
 
 One engine process at a time. The tokenizer fixture runs against an empty
 ClickHouse table and an empty Elasticsearch index before either load. Counts
-that disagree with the manifest, or with each other, stop the run. On a match
-the query text is frozen into queries/columnar-fulltext.md.
+that disagree with the manifest, or with each other, stop the run. The query
+text is frozen into queries/columnar-fulltext.md only at 1 GB.
 """
 
 from __future__ import annotations
 
 import base64
 import json
+import os
 import re
 import subprocess
 import sys
@@ -33,6 +34,21 @@ CH_AUTH = base64.b64encode(f"default:{CH_PASSWORD}".encode()).decode()
 ES = "http://127.0.0.1:19200"
 TOKEN = re.compile(r"[0-9A-Za-z]+")
 CH_TABLES = ("ch_col", "ch_ft", "ch_ng", "ch_scan")
+SIZE_GB = 1
+
+
+def corpus_rel() -> str:
+    return f"{SIZE_GB}gb"
+
+
+def corpus_dir() -> Path:
+    return ROOT / "data" / "corpus" / corpus_rel()
+
+
+def gate_result_path() -> Path:
+    if SIZE_GB == 1:
+        return ROOT / "results" / "columnar-fulltext-gate.json"
+    return ROOT / "results" / f"columnar-fulltext-gate-{SIZE_GB}gb.json"
 
 
 def log(message: str) -> None:
@@ -80,7 +96,7 @@ def http(method: str, url: str, body: bytes | None = None, content_type: str | N
     raise AssertionError("unreachable")
 
 
-def wait_until(label: str, url: str, seconds: int = 180) -> None:
+def wait_until(label: str, url: str, seconds: int = 300) -> None:
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
         try:
@@ -103,7 +119,35 @@ def engine(which: str) -> None:
     if which == "clickhouse":
         wait_until("clickhouse", f"{CH}/ping")
     else:
-        wait_until("elasticsearch", f"{ES}/_cluster/health?wait_for_status=yellow&timeout=5s")
+        wait_until(
+            "elasticsearch",
+            f"{ES}/_cluster/health?wait_for_status=yellow&timeout=5s",
+            seconds=600,
+        )
+
+
+def ensure_elasticsearch() -> None:
+    compose("elasticsearch", "up", "-d")
+    wait_until(
+        "elasticsearch",
+        f"{ES}/_cluster/health?wait_for_status=yellow&timeout=5s",
+        seconds=600,
+    )
+
+
+def es_doc_count(stream: str) -> int:
+    req = urllib.request.Request(f"{ES}/{stream}/_count")
+    try:
+        with urllib.request.urlopen(req, timeout=60) as response:
+            return int(json.loads(response.read()).get("count", 0))
+    except urllib.error.HTTPError as exc:
+        if exc.code in (400, 404):
+            return 0
+        detail = exc.read().decode(errors="replace")[:1000]
+        fail(f"GET {stream}/_count -> {exc.code}: {detail}")
+    except urllib.error.URLError:
+        return 0
+    raise AssertionError("unreachable")
 
 
 def ch(sql: str, timeout: int = 3600) -> str:
@@ -111,7 +155,7 @@ def ch(sql: str, timeout: int = 3600) -> str:
     return http("POST", url, sql.encode(), "text/plain", timeout).decode()
 
 
-def es(method: str, path: str, body: dict | None = None, timeout: int = 600) -> dict:
+def es(method: str, path: str, body: dict | None = None, timeout: int = 7200) -> dict:
     payload = None if body is None else json.dumps(body).encode()
     content = None if payload is None else "application/json"
     raw = http(method, ES + path, payload, content, timeout)
@@ -159,17 +203,23 @@ def apply_clickhouse() -> None:
             fail(f"{table} is not empty before the load ({count})")
 
 
-def apply_elasticsearch() -> None:
+def apply_elasticsearch(expected_events: int | None = None) -> None:
     es(
         "PUT",
         "/_cluster/settings",
         {"transient": {"search.allow_expensive_queries": True}},
     )
     for arm, stream in templates.ARMS.items():
-        delete_data_stream(stream)
         es("PUT", f"/_index_template/{arm}", templates.template(arm))
+        count = es_doc_count(stream)
+        if expected_events is not None and count == expected_events:
+            log(f"keeping {arm} ({count} docs)")
+            continue
+        if count:
+            log(f"{arm} has {count} docs, recreating")
+        delete_data_stream(stream)
         es("PUT", f"/_data_stream/{stream}")
-        count = es("GET", f"/{stream}/_count").get("count", 0)
+        count = es_doc_count(stream)
         if count != 0:
             fail(f"{stream} is not empty before the load ({count})")
 
@@ -224,7 +274,10 @@ def check_tokens(clickhouse: dict[str, list[str]], elastic: dict[str, list[str]]
 
 
 def insert_sql(table: str, limit: str = "") -> str:
-    source = "file('/var/lib/clickhouse/user_files/corpus/1gb/events.jsonl', 'LineAsString', 'line String')"
+    source = (
+        f"file('/var/lib/clickhouse/user_files/corpus/{corpus_rel()}/events.jsonl', "
+        f"'LineAsString', 'line String')"
+    )
     if limit:
         source = f"(SELECT line FROM {source} LIMIT {limit})"
     return f"""
@@ -269,7 +322,7 @@ def load_clickhouse(expected_events: int) -> None:
             fail(f"clickhouse did not return the sample body: {got[:200]}")
         for table in CH_TABLES:
             ch(f"TRUNCATE TABLE sysbench.{table}")
-    path = ROOT / "data" / "corpus" / "1gb" / "events.jsonl"
+    path = corpus_dir() / "events.jsonl"
     for table in CH_TABLES:
         have = counts[table] if not all(count == 0 for count in counts.values()) else 0
         if have == expected_events:
@@ -285,15 +338,32 @@ def load_clickhouse(expected_events: int) -> None:
         log(f"{table} rows={count} in {time.monotonic() - started:.0f}s")
         if count != expected_events:
             fail(f"{table} loaded {count} rows, manifest has {expected_events}")
+    wait_ch_merges()
+
+
+def wait_ch_merges(timeout: float = 3600.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        n = ch_count("SELECT count() FROM system.merges WHERE database = 'sysbench'")
+        if n == 0:
+            return
+        log(f"waiting for {n} ClickHouse merges")
+        time.sleep(10)
+    log("ClickHouse merges still running; continue")
 
 
 def stream_insert(table: str, path: Path, chunk_lines: int = 50000) -> None:
-    """Insert in chunks. One insert of the whole prefix builds a text index that does not fit in 2 GB."""
+    """Insert in chunks so a text-index build stays inside the container memory limit."""
+    source = (
+        f"FROM file('/var/lib/clickhouse/user_files/corpus/{corpus_rel()}/events.jsonl', "
+        f"'LineAsString', 'line String')\n"
+        "SETTINGS max_insert_block_size = 65536, max_insert_threads = 1, max_threads = 2"
+    )
+    insert_memory = os.environ.get("CH_MAX_INSERT_MEMORY", "8000000000")
     sql = insert_sql(table).replace(
-        "FROM file('/var/lib/clickhouse/user_files/corpus/1gb/events.jsonl', 'LineAsString', 'line String')\n"
-        "SETTINGS max_insert_block_size = 65536, max_insert_threads = 1, max_threads = 2",
+        source,
         "FROM input('line String')\n"
-        "SETTINGS max_memory_usage = 700000000, max_insert_block_size = 65536, max_threads = 1\n"
+        f"SETTINGS max_memory_usage = {insert_memory}, max_insert_block_size = 65536, max_threads = 1\n"
         "FORMAT LineAsString",
     )
     if "FROM input('line String')" not in sql:
@@ -318,51 +388,67 @@ def stream_insert(table: str, path: Path, chunk_lines: int = 50000) -> None:
             chunk = b"".join(line for _, line in zip(range(chunk_lines), handle))
             if not chunk:
                 break
-            result = subprocess.run(cmd, input=chunk, capture_output=True, timeout=600)
+            result = subprocess.run(cmd, input=chunk, capture_output=True, timeout=1800)
             if result.returncode != 0:
                 detail = (result.stderr or b"").decode(errors="replace")[-1500:]
                 fail(f"insert into {table} failed at row {sent} ({result.returncode}): {detail}")
             sent += chunk.count(b"\n")
             if sent % 500000 == 0:
                 log(f"{table} inserted {sent}")
-            if sent % 200000 == 0:
-                # RSS climbs across text-index inserts until the 2 GB VM kills the server.
+            restart_every = int(os.environ.get("CH_RESTART_EVERY", "0"))
+            if restart_every and sent % restart_every == 0:
                 log(f"restarting clickhouse after {table} {sent}")
                 compose("clickhouse", "restart")
                 wait_until("clickhouse", f"{CH}/ping")
 
 
-def bulk(stream: str, path: Path, batch_rows: int = 1000) -> None:
+def bulk(stream: str, path: Path, batch_rows: int | None = None) -> None:
+    if batch_rows is None:
+        batch_rows = int(os.environ.get("ES_BULK_ROWS", "4000"))
     import http.client
 
     prefix = b'{"timestamp":'
     replacement = b'{"@timestamp":'
     sent = 0
-    conn = http.client.HTTPConnection("127.0.0.1", 19200, timeout=180)
+    host = os.environ.get("ES_HOST", "127.0.0.1")
+    port = int(os.environ.get("ES_PORT", "19200"))
+    attempts = int(os.environ.get("ES_BULK_ATTEMPTS", "12"))
     batch: list[bytes] = []
 
+    def connect() -> http.client.HTTPConnection:
+        return http.client.HTTPConnection(host, port, timeout=300)
+
     def flush() -> None:
-        nonlocal conn
         if not batch:
             return
         payload = b"".join(batch)
-        for attempt in range(4):
+        last_exc: Exception | None = None
+        for attempt in range(attempts):
+            conn = connect()
             try:
                 conn.request(
                     "POST",
                     "/_bulk",
                     body=payload,
-                    headers={"Content-Type": "application/x-ndjson"},
+                    headers={
+                        "Content-Type": "application/x-ndjson",
+                        "Connection": "close",
+                    },
                 )
                 response = conn.getresponse()
                 raw = response.read()
-            except (http.client.HTTPException, OSError, TimeoutError):
-                conn.close()
-                conn = http.client.HTTPConnection("127.0.0.1", 19200, timeout=180)
-                if attempt == 3:
-                    fail(f"bulk to {stream} dropped the connection at row {sent}")
-                time.sleep(2)
+            except (http.client.HTTPException, OSError, TimeoutError) as exc:
+                last_exc = exc
+                delay = min(30, 2 ** attempt)
+                log(f"{stream} bulk retry {attempt + 1}/{attempts} at row {sent}: {exc}; sleep {delay}s")
+                time.sleep(delay)
+                try:
+                    ensure_elasticsearch()
+                except SystemExit:
+                    pass
                 continue
+            finally:
+                conn.close()
             if response.status >= 300:
                 fail(f"bulk to {stream} -> {response.status}: {raw[:500]!r}")
             parsed = json.loads(raw)
@@ -373,7 +459,7 @@ def bulk(stream: str, path: Path, batch_rows: int = 1000) -> None:
                         fail(f"bulk error on {stream}: {error}")
             batch.clear()
             return
-        fail(f"bulk to {stream} did not flush")
+        fail(f"bulk to {stream} dropped the connection at row {sent}: {last_exc}")
 
     meta = ('{"create":{"_index":"%s"}}\n' % stream).encode()
     with path.open("rb") as handle:
@@ -388,38 +474,49 @@ def bulk(stream: str, path: Path, batch_rows: int = 1000) -> None:
                 if sent % 100000 == 0:
                     log(f"{stream} bulk {sent}")
     flush()
-    conn.close()
     log(f"{stream} bulk rows={sent}")
 
 
 def load_elasticsearch(path: Path, expected_events: int, sample_body: str) -> None:
-    first = path.open("rb").readline()
-    doc = json.loads(first)
-    doc["@timestamp"] = doc.pop("timestamp")
-    for stream in (
-        templates.ARMS["es-col"],
-        templates.ARMS["es-ft"],
-        templates.ARMS["es-scan"],
-    ):
-        payload = (
-            json.dumps({"create": {"_index": stream}}) + "\n" + json.dumps(doc) + "\n"
-        ).encode()
-        http("POST", f"{ES}/_bulk", payload, "application/x-ndjson")
-        es("POST", f"/{stream}/_refresh")
-        fetched = es(
-            "POST",
-            f"/{stream}/_search",
-            {"size": 1, "query": {"term": {"trace_id": doc["trace_id"]}}},
-        )
-        hits = fetched["hits"]["hits"]
-        if not hits or hits[0]["_source"].get("body") != doc["body"]:
-            fail(f"{stream} did not round-trip body")
-    del sample_body
-    log("elasticsearch round-trip kept body; recreating empty streams")
-    for stream in templates.ARMS.values():
-        delete_data_stream(stream)
-        es("PUT", f"/_data_stream/{stream}")
-    for arm, stream in templates.ARMS.items():
+    pending = [
+        (arm, stream)
+        for arm, stream in templates.ARMS.items()
+        if es_doc_count(stream) != expected_events
+    ]
+    kept = [arm for arm, stream in templates.ARMS.items() if (arm, stream) not in pending]
+    if kept:
+        log(f"keeping already loaded: {', '.join(kept)}")
+    if not pending:
+        return
+    if not kept:
+        first = path.open("rb").readline()
+        doc = json.loads(first)
+        doc["@timestamp"] = doc.pop("timestamp")
+        for stream in (
+            templates.ARMS["es-col"],
+            templates.ARMS["es-ft"],
+            templates.ARMS["es-scan"],
+        ):
+            payload = (
+                json.dumps({"create": {"_index": stream}}) + "\n" + json.dumps(doc) + "\n"
+            ).encode()
+            http("POST", f"{ES}/_bulk", payload, "application/x-ndjson")
+            es("POST", f"/{stream}/_refresh")
+            fetched = es(
+                "POST",
+                f"/{stream}/_search",
+                {"size": 1, "query": {"term": {"trace_id": doc["trace_id"]}}},
+            )
+            hits = fetched["hits"]["hits"]
+            if not hits or hits[0]["_source"].get("body") != doc["body"]:
+                fail(f"{stream} did not round-trip body")
+        del sample_body
+        log("elasticsearch round-trip kept body; recreating empty streams")
+        for stream in templates.ARMS.values():
+            delete_data_stream(stream)
+            es("PUT", f"/_data_stream/{stream}")
+        pending = list(templates.ARMS.items())
+    for arm, stream in pending:
         log(f"loading {arm}")
         started = time.monotonic()
         es("PUT", f"/{stream}/_settings", {"index": {"refresh_interval": "-1"}})
@@ -522,9 +619,38 @@ def write_freeze(path: Path, manifest: dict, versions: dict, counts: dict) -> No
     path.write_text("\n".join(lines))
 
 
+def parse_args(argv: list[str]) -> tuple[int, bool, bool]:
+    size = 1
+    skip_freeze = False
+    reuse_es = False
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--size":
+            size = int(argv[i + 1])
+            i += 2
+            continue
+        if arg.startswith("--size="):
+            size = int(arg.split("=", 1)[1])
+            i += 1
+            continue
+        if arg == "--skip-freeze":
+            skip_freeze = True
+            i += 1
+            continue
+        if arg == "--reuse-elasticsearch":
+            reuse_es = True
+            i += 1
+            continue
+        fail(f"unknown arg {arg}")
+    return size, skip_freeze, reuse_es
+
+
 def main() -> int:
-    reuse_es = "--reuse-elasticsearch" in sys.argv
-    corpus = ROOT / "data" / "corpus" / "1gb"
+    global SIZE_GB
+    size, skip_freeze, reuse_es = parse_args(sys.argv[1:])
+    SIZE_GB = size
+    corpus = corpus_dir()
     manifest_path = corpus / "manifest.json"
     events = corpus / "events.jsonl"
     if not manifest_path.is_file() or not events.is_file():
@@ -551,7 +677,7 @@ def main() -> int:
     else:
         if reuse_es:
             log(f"elasticsearch has {loaded} docs; loading again")
-        apply_elasticsearch()
+        apply_elasticsearch(manifest["event_count"])
         if clickhouse_tokens is None:
             fail("tokenizer check needs a ClickHouse pass before the first load")
         elastic_tokens = tokenize_elasticsearch(lines)
@@ -586,24 +712,35 @@ def main() -> int:
         fail(f"K1 disagreed: ch={k1_ch!r} es={k1_es!r}")
     log("K1 matched")
 
-    freeze = ROOT / "queries" / "columnar-fulltext.md"
-    result = ROOT / "results" / "columnar-fulltext-gate.json"
+    result = gate_result_path()
     result.parent.mkdir(parents=True, exist_ok=True)
     result.write_text(
         json.dumps(
             {
                 "passed": True,
                 "host": "macos",
+                "size_gb": SIZE_GB,
+                "corpus": corpus_rel(),
                 "versions": versions,
                 "manifest_sha256": manifest["sha256"],
                 "event_count": manifest["event_count"],
+                "actual_bytes": manifest["actual_bytes"],
                 "counts": counts,
+                "queries_frozen": False,
             },
             indent=2,
         )
         + "\n"
     )
+    log(f"wrote {result}")
+    if skip_freeze or SIZE_GB != 1:
+        log(f"skip query freeze (size={SIZE_GB}gb)")
+        return 0
+    freeze = ROOT / "queries" / "columnar-fulltext.md"
     write_freeze(freeze, manifest, versions, counts)
+    payload = json.loads(result.read_text())
+    payload["queries_frozen"] = True
+    result.write_text(json.dumps(payload, indent=2) + "\n")
     log(f"froze {freeze}")
     return 0
 
@@ -732,7 +869,7 @@ def check_multiline_es(manifest: dict) -> None:
 
 
 def compare_c6(manifest_ignored: dict, clickhouse: dict, elastic: dict) -> None:
-    incident_path = ROOT / "data" / "corpus" / "1gb" / "incidents.json"
+    incident_path = corpus_dir() / "incidents.json"
     incident = json.loads(incident_path.read_text())["incidents"][0]
     for hour in incident["hours"]:
         key = hour_key(hour["hour"])

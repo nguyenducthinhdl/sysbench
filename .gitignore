@@ -13,3 +13,21 @@ __pycache__/
 # Runtime output from a local Vector run
 phase1a/macos/logs/*.log
 !phase1a/macos/logs/.gitignore
+
+# Generated columnar/full-text corpus. Manifests are rewritten on each run.
+data/corpus/
+
+# Mock storage written by `syscon-bench file`
+events.jsonl
+
+# One million masked lines from each envoy log. Built by `syscon-bench prepare`.
+syscon-bench/data/messages.txt
+
+# Shared 1M-row preload. Built by `syscon-bench write --rows`.
+syscon-bench/data/preload-1m.jsonl
+syscon-bench/data/preload-5m.jsonl
+
+.DS_Store
+**/.DS_Store
+syscon-bench/docs/phase3-png/chrome.log
+results/*.log

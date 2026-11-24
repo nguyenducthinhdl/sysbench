@@ -31,8 +31,11 @@ const usageText = `Usage:
   syscon-bench run --scenario <file> [--fields file] [--messages file]
       [--storage-name <id> --storage-endpoint <url>]
       [--via vector] [--vector-endpoint <url>]
-  syscon-bench write --out <file> [--bytes n] [--scenario <file>]
+  syscon-bench write --out <file> [--rows n | --bytes n] [--scenario <file>]
+      [--fields file] [--messages file]
       [--min-size n] [--max-size n] [--error-rate f] [--seed n]
+  syscon-bench preload --scenario <file> --storage-name <id> --storage-endpoint <url>
+      [--file <jsonl> --rows n] [--batch n] [--fields file] [--messages file] [--seed n]
   syscon-bench blackhole [--addr host:port] [--username <user> --password <pass>]
   syscon-bench file [--addr host:port] [--path file] [--username <user> --password <pass>]
   syscon-bench dashboard [--addr host:port] [--username <user> --password <pass>]
@@ -46,7 +49,7 @@ are each drawn from their 1000 values. message is one masked line with the
 placeholders filled in. It then walks the scenario clock and POSTs batches.
 error_rate sets log-severity to error and status-code to 500; the request is
 still sent. query_rate starts searches in this process: full-text, exact
-match, and filter, using field values from events the sink has accepted.
+match, filter, and aggregation, using field values from events the sink has accepted.
 
 Storage names: blackhole, clickhouse, elasticsearch, loki, victorialogs.
 Each engine adapter inserts over that engine's HTTP API and runs the matching
@@ -56,10 +59,17 @@ file and is sent when the scenario auth type is basic. --via vector posts
 ingest to the local sidecar as newline-delimited JSON and leaves queries on
 the storage endpoint. The storage name is unchanged.
 
-write fills a JSONL file with contract events until it reaches --bytes
-(default 2GiB). It does not start the scenario clock and does not push metrics.
---scenario supplies min_size, max_size, and the first segment error_rate.
-Explicit size and error-rate flags replace those values.
+write fills a JSONL file with contract events. --rows writes that many lines
+from the field pool and the message file. Without --rows it writes until
+--bytes (default 2GiB) using synthetic messages. It does not start the
+scenario clock and does not push metrics. --scenario supplies min_size,
+max_size, and the first segment error_rate. Explicit size and error-rate
+flags replace those values.
+
+preload pushes events until the engine reports --rows stored rows. --file
+pushes that JSONL as-is and requires the line count to equal --rows. The
+store must be empty. Without --file, events are generated from the field
+pool and the message file.
 
 blackhole listens for those POSTs and discards the body.
 file listens for the same POSTs and appends each event as one JSON line.
@@ -95,6 +105,10 @@ func run(args []string) error {
 		return cmdRun(args[1:])
 	case "write":
 		return cmdWrite(args[1:])
+	case "preload":
+		return cmdPreload(args[1:])
+	case "report":
+		return cmdReport(args[1:])
 	case "blackhole":
 		return cmdBlackhole(args[1:])
 	case "file":
@@ -117,6 +131,7 @@ func cmdRun(args []string) error {
 	messagesPath := fs.String("messages", "data/messages.txt", "masked log lines, one message per line")
 	storageName := fs.String("storage-name", "", "override storage name")
 	storageEndpoint := fs.String("storage-endpoint", "", "override storage endpoint")
+	duration := fs.Float64("duration", 0, "scale the scenario clock to this many seconds; 0 keeps the file")
 	via := fs.String("via", "", "set to vector to push ingest to the local sidecar")
 	vectorEndpoint := fs.String("vector-endpoint", "http://127.0.0.1:8686", "Vector HTTP source")
 	if err := fs.Parse(args); err != nil {
@@ -146,6 +161,12 @@ func cmdRun(args []string) error {
 		if err := sc.OverrideStorage(*storageName, *storageEndpoint); err != nil {
 			return err
 		}
+	}
+	if *duration > 0 {
+		if err := sc.ScaleDuration(*duration); err != nil {
+			return err
+		}
+		log.Printf("scenario clock scaled to %gs", *duration)
 	}
 	engine, err := openSink(sc.Storage)
 	if err != nil {
@@ -254,8 +275,11 @@ func cmdWrite(args []string) error {
 	fs := flag.NewFlagSet("write", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	out := fs.String("out", "", "JSONL file to write")
+	rows := fs.Int64("rows", 0, "write this many events from the field pool and message file")
 	target := fs.Int64("bytes", 2147483648, "stop when the file reaches this many bytes")
 	scenarioPath := fs.String("scenario", "", "scenario whose min_size, max_size, and first error_rate are used")
+	fieldsPath := fs.String("fields", "data/fields.csv", "field pool")
+	messagesPath := fs.String("messages", "data/messages.txt", "masked message lines")
 	minSize := fs.Int("min-size", 0, "message bytes; overrides the scenario")
 	maxSize := fs.Int("max-size", 0, "message bytes; overrides the scenario")
 	errorRate := fs.Float64("error-rate", -1, "fraction of events marked as errors; overrides the scenario")
@@ -292,12 +316,154 @@ func cmdWrite(args []string) error {
 	if *errorRate >= 0 {
 		rate = *errorRate
 	}
-	res, err := generate.WriteFile(*out, *target, min, max, rate, *seed)
+	var (
+		res generate.WriteResult
+		err error
+	)
+	if *rows > 0 {
+		var cat *generate.Catalog
+		cat, err = generate.LoadCatalog(*fieldsPath, *messagesPath)
+		if err != nil {
+			return err
+		}
+		res, err = generate.WriteRows(*out, *rows, cat, min, max, rate, *seed)
+	} else {
+		res, err = generate.WriteFile(*out, *target, min, max, rate, *seed)
+	}
 	if err != nil {
 		return err
 	}
 	fmt.Printf("events=%d\nbytes=%d\npath=%s\n", res.Events, res.Bytes, *out)
 	return nil
+}
+
+func cmdPreload(args []string) error {
+	fs := flag.NewFlagSet("preload", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	rows := fs.Int64("rows", 100_000_000, "stop when the engine reports this many stored rows")
+	batch := fs.Int("batch", 200, "events per push")
+	filePath := fs.String("file", "", "JSONL file to push as-is")
+	scenarioPath := fs.String("scenario", "", "scenario whose min_size, max_size, and first error_rate are used")
+	fieldsPath := fs.String("fields", "data/fields.csv", "field pool")
+	messagesPath := fs.String("messages", "data/messages.txt", "masked message lines")
+	storageName := fs.String("storage-name", "", "engine name")
+	storageEndpoint := fs.String("storage-endpoint", "", "engine URL")
+	seed := fs.Uint64("seed", 1, "rng seed")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Fprint(os.Stdout, usageText)
+			return nil
+		}
+		return err
+	}
+	if fs.NArg() != 0 {
+		return fmt.Errorf("unexpected argument %q", fs.Arg(0))
+	}
+	if *scenarioPath == "" || *storageName == "" || *storageEndpoint == "" {
+		return errors.New("--scenario, --storage-name, and --storage-endpoint are required")
+	}
+	sc, err := scenario.Load(*scenarioPath)
+	if err != nil {
+		return err
+	}
+	if err := sc.OverrideStorage(*storageName, *storageEndpoint); err != nil {
+		return err
+	}
+	engine, err := openSink(sc.Storage)
+	if err != nil {
+		return err
+	}
+	counter, ok := engine.(interface {
+		Stored(context.Context) (int64, error)
+	})
+	if !ok {
+		return fmt.Errorf("storage %q does not report a row count", sc.Storage.Name)
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if *filePath != "" {
+		got, err := generate.PreloadFile(ctx, engine, counter.Stored, *filePath, *batch, *rows, 60*time.Second, nil)
+		if err != nil {
+			fmt.Printf("rows=%d\n", got)
+			return err
+		}
+		if got < *rows {
+			fmt.Printf("rows=%d\n", got)
+			return fmt.Errorf("preload stored %d rows, want %d", got, *rows)
+		}
+		fmt.Printf("rows=%d\n", got)
+		return nil
+	}
+	cat, err := generate.LoadCatalog(*fieldsPath, *messagesPath)
+	if err != nil {
+		return err
+	}
+	got, err := generate.Preload(ctx, engine, counter.Stored, generate.PreloadOptions{
+		Rows:      *rows,
+		Batch:     *batch,
+		MinSize:   sc.Configs.MinSize,
+		MaxSize:   sc.Configs.MaxSize,
+		ErrorRate: sc.Segments[0].ErrorRate,
+		Seed:      *seed,
+		Catalog:   cat,
+	})
+	if err != nil {
+		fmt.Printf("rows=%d\n", got)
+		return err
+	}
+	if got < *rows {
+		fmt.Printf("rows=%d\n", got)
+		return fmt.Errorf("preload stored %d rows, want %d", got, *rows)
+	}
+	fmt.Printf("rows=%d\n", got)
+	return nil
+}
+
+func cmdReport(args []string) error {
+	fs := flag.NewFlagSet("report", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	promURL := fs.String("prom", "http://127.0.0.1:9090", "Prometheus base URL")
+	engine := fs.String("engine", "", "engine name")
+	scenarioName := fs.String("scenario", "", "scenario name")
+	rows := fs.Int64("rows", 0, "preload rows the engine reported")
+	start := fs.Int64("start", 0, "window start, unix seconds")
+	end := fs.Int64("end", 0, "window end, unix seconds")
+	out := fs.String("out", "docs/phase3-report.md", "report file to append")
+	diskUsed := fs.Int64("disk-used", -1, "du -sb of the engine data directory after the hour")
+	diskPreload := fs.Int64("disk-preload", -1, "du -sb of the engine data directory after preload")
+	diskBefore := fs.Int64("disk-before", -1, "du -sb of the engine data directory before preload")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Fprint(os.Stdout, usageText)
+			return nil
+		}
+		return err
+	}
+	if fs.NArg() != 0 {
+		return fmt.Errorf("unexpected argument %q", fs.Arg(0))
+	}
+	if *engine == "" || *scenarioName == "" {
+		return errors.New("--engine and --scenario are required")
+	}
+	rep := metrics.Report{
+		Engine:         *engine,
+		Scenario:       *scenarioName,
+		Rows:           *rows,
+		PromURL:        *promURL,
+		DiskUsed:       *diskUsed,
+		DiskPreload:    *diskPreload,
+		DiskBefore:     *diskBefore,
+		DiskSet:        *diskUsed >= 0,
+		DiskPreloadSet: *diskPreload >= 0,
+		DiskBeforeSet:  *diskBefore >= 0,
+	}
+	if *start > 0 {
+		rep.Start = time.Unix(*start, 0).UTC()
+	}
+	if *end > 0 {
+		rep.End = time.Unix(*end, 0).UTC()
+	}
+	return metrics.AppendReport(context.Background(), *out, rep)
 }
 
 func cmdPrepare(args []string) error {

@@ -167,3 +167,76 @@ func avgGap(seg scenario.Segment, from, n int) float64 {
 	}
 	return sum / float64(n)
 }
+
+func TestPhase3Scenarios(t *testing.T) {
+	engines := []struct {
+		name     string
+		endpoint string
+	}{
+		{"clickhouse", "http://clickhouse:8123"},
+		{"elasticsearch", "http://elasticsearch:9200"},
+		{"loki", "http://loki:3100"},
+		{"victorialogs", "http://victorialogs:9428"},
+	}
+	var spikes *scenario.Scenario
+	for _, engine := range engines {
+		steady, err := scenario.Load("../../log-generator/scenarios/phase3-" + engine.name + "-steady.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if steady.Name != "phase3-"+engine.name+"-steady" || steady.Storage.Name != engine.name || steady.Storage.Endpoint != engine.endpoint {
+			t.Fatalf("steady storage %+v", steady.Storage)
+		}
+		if TotalOffered(steady) != 72000 {
+			t.Fatalf("%s steady offered %d", engine.name, TotalOffered(steady))
+		}
+		if math.Abs(Queries(steady.Segments[0])-72000) > 1e-6 {
+			t.Fatalf("%s steady queries %v", engine.name, Queries(steady.Segments[0]))
+		}
+		if steady.Segments[0].QueryRate != 1200 || steady.Segments[0].RPSMax != 20 {
+			t.Fatalf("%+v", steady.Segments[0])
+		}
+		spikes, err = scenario.Load("../../log-generator/scenarios/phase3-" + engine.name + "-spikes.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if spikes.Name != "phase3-"+engine.name+"-spikes" || spikes.Storage.Name != engine.name || spikes.Storage.Endpoint != engine.endpoint {
+			t.Fatalf("spikes storage %+v", spikes.Storage)
+		}
+		wantEvents := []int{18000, 120000, 18000, 120000, 12000}
+		if len(spikes.Segments) != len(wantEvents) {
+			t.Fatalf("%s segments %d", engine.name, len(spikes.Segments))
+		}
+		sumQ := 0.0
+		for i, seg := range spikes.Segments {
+			if Offered(seg) != wantEvents[i] {
+				t.Fatalf("%s %s offered %d", engine.name, seg.Name, Offered(seg))
+			}
+			if seg.QueryRate != 1200 {
+				t.Fatalf("%s %s query_rate %v", engine.name, seg.Name, seg.QueryRate)
+			}
+			sumQ += Queries(seg)
+		}
+		if TotalOffered(spikes) != 288000 {
+			t.Fatalf("%s spikes offered %d", engine.name, TotalOffered(spikes))
+		}
+		if math.Abs(sumQ-72000) > 1e-6 {
+			t.Fatalf("%s spikes queries %v", engine.name, sumQ)
+		}
+		if RateAt(spikes, 900) != 200 || RateAt(spikes, 1500) != 20 || RateAt(spikes, 2400) != 200 || RateAt(spikes, 3000) != 20 {
+			t.Fatalf("%s boundaries %v %v %v %v", engine.name, RateAt(spikes, 900), RateAt(spikes, 1500), RateAt(spikes, 2400), RateAt(spikes, 3000))
+		}
+	}
+	if err := spikes.ScaleDuration(180); err != nil {
+		t.Fatal(err)
+	}
+	if spikes.Configs.Duration != 180 || spikes.Segments[len(spikes.Segments)-1].TimeStamp != 180 {
+		t.Fatalf("scaled %+v last %+v", spikes.Configs, spikes.Segments[len(spikes.Segments)-1])
+	}
+	if math.Abs(spikes.Segments[1].Start-45) > 1e-9 || math.Abs(spikes.Segments[1].TimeStamp-75) > 1e-9 {
+		t.Fatalf("scaled spike %+v", spikes.Segments[1])
+	}
+	if spikes.Segments[1].RPSMax != 200 || spikes.Segments[1].QueryRate != 1200 {
+		t.Fatal("scale changed rates")
+	}
+}

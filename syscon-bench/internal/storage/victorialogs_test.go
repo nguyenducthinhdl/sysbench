@@ -76,6 +76,11 @@ func TestVictoriaLogsPushAndSearch(t *testing.T) {
 	if _, err := vl.Search(context.Background(), filterQuery()); err != nil {
 		t.Fatal(err)
 	}
+	agg := filterQuery()
+	agg.Class = QueryAggregation
+	if _, err = vl.Search(context.Background(), agg); err != nil {
+		t.Fatal(err)
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -92,17 +97,20 @@ func TestVictoriaLogsPushAndSearch(t *testing.T) {
 	if len(lines) != 1 || lines[0].Message != ev.Message || lines[0].Time != ev.Time {
 		t.Fatalf("%+v", lines)
 	}
-	if len(forms) != 3 {
+	if len(forms) != 4 {
 		t.Fatalf("forms %d", len(forms))
 	}
-	if forms[0].Get("query") != `"checkout" | stats count() as hits` || forms[0].Get("start") != "" {
+	if forms[0].Get("query") != `"checkout" | stats count() as hits` || forms[0].Get("start") != "2020-01-01T00:00:00Z" || forms[0].Get("end") == "" {
 		t.Fatalf("fulltext %+v", forms[0])
 	}
-	if !strings.Contains(forms[1].Get("query"), `"trace-id":="`+ev.TraceID+`"`) {
+	if !strings.Contains(forms[1].Get("query"), `"trace-id":="`+ev.TraceID+`"`) || forms[1].Get("start") != "2020-01-01T00:00:00Z" {
 		t.Fatalf("exact %s", forms[1].Get("query"))
 	}
 	if !strings.Contains(forms[2].Get("query"), `"service":="checkout"`) || forms[2].Get("start") == "" || forms[2].Get("end") == "" {
 		t.Fatalf("filter %+v", forms[2])
+	}
+	if forms[3].Get("query") != "* | stats sum(len(message)) as hits" || forms[3].Get("start") == "" || forms[3].Get("end") == "" {
+		t.Fatalf("aggregation %+v", forms[3])
 	}
 }
 

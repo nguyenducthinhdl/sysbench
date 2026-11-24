@@ -33,9 +33,10 @@ Get from survey: https://docs.google.com/spreadsheets/d/1eNMPQrv7KRI6Jv5Mj-81oru
 - The message will be a Structured JSON (60%), Access Log format (10%), Plain text and natural error message (10%), Stack traces / exception dumps (5%), Audit/security events (5%)
 
 3. Querry Pattern for Search
-- Full-text search: 30%
-- Exact-Match: Filtering by service, time, severity, status, or other fields: 30%
-- Filtering by service, time, severity, status, or other fields: 40%
+- Full-text search: 25%
+- Exact-Match: Filtering by service, time, severity, status, or other fields: 25%
+- Filtering by service, time, severity, status, or other fields: 25%
+- Aggregation: sum of message lengths in the last 60 seconds: 25%
 
 ## Scenario clock
 
@@ -70,8 +71,27 @@ The last `time_stamp` equals `duration`. The first segment covers the seconds fr
     - Send directly via endpoint
     - testing by docker
 - Phase 2: Integrate with Infra
-    - Infra is K8s and logs would be sent to the log agent like Vector
-    - building k8s crd or deployment
+    - Using TailScale to connect to VM
+- Phase 3: Do the benmark with default configuration
+    - Build bench mark scenarios to compare ClickHouse, Elasticsearch, Loki, VictoriaLog with default configuration on 1 VM for log generator, metrics collector and the benmarking orchestrator in on the MAC machine
+        - Scenarios: Each Database ingested 1M row log before running the benchmarking test
+        1. No Spike RPS in 60 mins, normal Query
+            - 20 RPS for log ingestion
+            - 20 RPS for Query (complex query type, search text, full-text)
+        2. There are 2 Spiked in 60 mins, high Query
+            - 20 RPS to 200 RPS
+            - 20 RPS for Query (complex query type, search text, full-text)
+    - Number of benmarking: 4 x 2 = 8 test cases
+    - Collected Metrics in Graphana:
+        - Infra: CPU, Mem (in detail), Disk
+        - Database: Disk, Error, Latency (AVG, P99, P95), specified metrics (parts in CH for example)
+        - Make Report including graph represent timeline
+    - Steps:
+        1. Run with in mins for 1 test cases
+        2. Official Run in 60 mins
+    - Note
+        - Make sure the infra avaiable before doing benchmarking
+        - Turn-off the other databases before doing benchmarking
 
 ## TechStack
 1. Log generator / Query Client: Rust or Golang. We hope to regroup to 1 application

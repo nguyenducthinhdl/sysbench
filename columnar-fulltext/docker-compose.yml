@@ -13,7 +13,7 @@ services:
       # The 26.2 image closes the default user's network port unless a password is set.
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-columnar}
-    mem_limit: 1700m
+    mem_limit: 14g
     ports:
       - "18123:8123"
       - "19000:9000"
@@ -37,8 +37,9 @@ services:
       xpack.security.http.ssl.enabled: "false"
       xpack.security.transport.ssl.enabled: "false"
       xpack.ml.enabled: "false"
-      ES_JAVA_OPTS: ${ES_JAVA_OPTS:--Xms512m -Xmx512m}
+      ES_JAVA_OPTS: ${ES_JAVA_OPTS:--Xms6g -Xmx6g}
       cluster.routing.allocation.disk.threshold_enabled: "false"
+    mem_limit: 14g
     ports:
       - "19200:9200"
     ulimits:

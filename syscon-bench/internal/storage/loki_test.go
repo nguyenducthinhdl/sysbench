@@ -64,6 +64,11 @@ func TestLokiPushAndSearch(t *testing.T) {
 	if _, err := loki.Search(context.Background(), filterQuery()); err != nil {
 		t.Fatal(err)
 	}
+	agg := filterQuery()
+	agg.Class = QueryAggregation
+	if _, err = loki.Search(context.Background(), agg); err != nil {
+		t.Fatal(err)
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -94,7 +99,7 @@ func TestLokiPushAndSearch(t *testing.T) {
 	if !ok || meta["trace_id"] != ev.TraceID || meta["status_code"] != "200" || meta["uuid"] != ev.UUID {
 		t.Fatalf("meta %+v", values[0][2])
 	}
-	if len(queries) != 3 {
+	if len(queries) != 4 {
 		t.Fatalf("queries %d", len(queries))
 	}
 	if !strings.Contains(queries[0], `|= "a\"b"`) || !strings.Contains(queries[0], "count_over_time") {
@@ -105,6 +110,9 @@ func TestLokiPushAndSearch(t *testing.T) {
 	}
 	if !strings.Contains(queries[2], `service="checkout"`) || !strings.Contains(queries[2], "[60s]") || eval == "" {
 		t.Fatalf("filter %s time %s", queries[2], eval)
+	}
+	if !strings.Contains(queries[3], "bytes_over_time") || !strings.Contains(queries[3], "sum(") {
+		t.Fatalf("aggregation %s", queries[3])
 	}
 }
 

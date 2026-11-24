@@ -1,0 +1,36 @@
+# Phase 3 steady hour for loki. Units are frozen in syscon-bench/docs/contract.md.
+# duration and time_stamp are seconds from the start.
+# rps_min_concurrent and rps_max_concurrent: offered events per second, process-wide.
+# query_rate: queries per minute.
+# 1200 queries per minute is 20 queries per second.
+
+name: phase3-loki-steady
+storage:
+  - name: loki
+    endpoint: http://loki:3100
+    protocol: http
+    auth:
+      type: basic
+      username: admin
+      password: admin
+dashboard:
+  - name: dashboard-01
+    endpoint: http://localhost:8001
+    protocol: http
+    auth:
+      type: basic
+      username: admin
+      password: admin
+configs:
+  min_size: 100
+  max_size: 200000
+  concurrent: 100
+  duration: 3600
+scenario:
+  - name: steady
+    time_stamp: 3600
+    type: linear
+    rps_min_concurrent: 20
+    rps_max_concurrent: 20
+    error_rate: 0.01
+    query_rate: 1200

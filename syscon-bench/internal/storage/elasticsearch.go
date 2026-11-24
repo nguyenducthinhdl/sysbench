@@ -136,7 +136,9 @@ func (e *Elasticsearch) Push(ctx context.Context, batch []Event) error {
 	}
 	req.Header.Set("Content-Type", "application/x-ndjson")
 	setAuth(req, e.user, e.pass)
-	status, respBody, err := call(e.client, req, false)
+	// The bulk response is one JSON object with an item per event. The short
+	// error buffer truncates it, so the success body has to be kept whole.
+	status, respBody, err := call(e.client, req, true)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w", err)
 	}
@@ -159,11 +161,21 @@ func (e *Elasticsearch) Search(ctx context.Context, q Query) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	payload, err := json.Marshal(map[string]any{
+	bodyDoc := map[string]any{
 		"size":             0,
 		"track_total_hits": true,
 		"query":            query,
-	})
+	}
+	if q.Class == QueryAggregation {
+		bodyDoc["aggs"] = map[string]any{
+			"message_bytes": map[string]any{
+				"sum": map[string]any{
+					"script": map[string]any{"source": "params._source.message.length()"},
+				},
+			},
+		}
+	}
+	payload, err := json.Marshal(bodyDoc)
 	if err != nil {
 		return Result{}, fmt.Errorf("elasticsearch: encode: %w", err)
 	}
@@ -282,7 +294,9 @@ func elasticsearchQuery(q Query) (any, error) {
 		if q.Token == "" {
 			return nil, fmt.Errorf("elasticsearch: full-text token is empty")
 		}
-		return map[string]any{"match": map[string]any{"message": q.Token}}, nil
+		// term looks up one analyzed token. match would score by term frequency,
+		// and this field does not store term frequency.
+		return map[string]any{"term": map[string]any{"message": q.Token}}, nil
 	case QueryExact:
 		value, err := elasticsearchValue(q.Class, q.Field, q.Value)
 		if err != nil {
@@ -303,6 +317,14 @@ func elasticsearchQuery(q Query) (any, error) {
 				"lt":  q.To.UTC().Format(time.RFC3339Nano),
 			}}},
 			map[string]any{"term": map[string]any{q.Field: value}},
+		}}}, nil
+	case QueryAggregation:
+		if q.From.IsZero() || !q.From.Before(q.To) {
+			return nil, fmt.Errorf("elasticsearch: aggregation window is empty")
+		}
+		return map[string]any{"range": map[string]any{"@timestamp": map[string]string{
+			"gte": q.From.UTC().Format(time.RFC3339Nano),
+			"lt":  q.To.UTC().Format(time.RFC3339Nano),
 		}}}, nil
 	default:
 		return nil, fmt.Errorf("elasticsearch: unknown query class %q", q.Class)
@@ -351,9 +373,49 @@ func elasticsearchHits(body []byte) (int, error) {
 				Value int `json:"value"`
 			} `json:"total"`
 		} `json:"hits"`
+		Aggregations map[string]struct {
+			Value float64 `json:"value"`
+		} `json:"aggregations"`
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return 0, err
 	}
+	if agg, ok := parsed.Aggregations["message_bytes"]; ok {
+		return int(agg.Value), nil
+	}
 	return parsed.Hits.Total.Value, nil
+}
+
+// Stored is the number of documents in the logs data stream.
+// A missing data stream is zero.
+func (e *Elasticsearch) Stored(ctx context.Context) (int64, error) {
+	if err := e.ensure(ctx); err != nil {
+		return 0, err
+	}
+	u, err := endpointURL(e.endpoint, "/logs/_count")
+	if err != nil {
+		return 0, fmt.Errorf("elasticsearch: endpoint: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return 0, fmt.Errorf("elasticsearch: request: %w", err)
+	}
+	setAuth(req, e.user, e.pass)
+	status, body, err := call(e.client, req, false)
+	if err != nil {
+		return 0, fmt.Errorf("elasticsearch: %w", err)
+	}
+	if missingStore(status, body) {
+		return 0, nil
+	}
+	if !okStatus(status) {
+		return 0, httpStatusError("elasticsearch", status, body)
+	}
+	var parsed struct {
+		Count int64 `json:"count"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return 0, fmt.Errorf("elasticsearch: count: %w", err)
+	}
+	return parsed.Count, nil
 }

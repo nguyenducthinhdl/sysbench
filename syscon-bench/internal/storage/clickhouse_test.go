@@ -81,6 +81,11 @@ func TestClickHousePushAndSearch(t *testing.T) {
 	if err != nil || res.Hits != 4 {
 		t.Fatalf("filter %d err %v", res.Hits, err)
 	}
+	agg := filterQuery()
+	agg.Class = QueryAggregation
+	if _, err = ch.Search(context.Background(), agg); err != nil {
+		t.Fatal(err)
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -93,14 +98,17 @@ func TestClickHousePushAndSearch(t *testing.T) {
 	if len(inserted) != 1 || inserted[0].Time != "2026-11-02 11:24:00.000" || inserted[0].Service != "checkout" {
 		t.Fatalf("%+v", inserted)
 	}
-	if len(queries) != 3 || !strings.Contains(queries[0], "syscon.logs") || !strings.Contains(queries[0], "hasToken") || !strings.Contains(params[0], "check%22out") {
+	if len(queries) != 4 || !strings.Contains(queries[0], "syscon.logs") || !strings.Contains(queries[0], "hasToken") || !strings.Contains(params[0], "check%22out") {
 		t.Fatalf("fulltext %s %s", queries[0], params[0])
 	}
 	if !strings.Contains(queries[1], "`status-code`") || !strings.Contains(params[1], "param_val=200") {
 		t.Fatalf("exact %s %s", queries[1], params[1])
 	}
-	if !strings.Contains(queries[2], "t_from:DateTime64") || !strings.Contains(params[2], "param_t_from=") {
+	if !strings.Contains(queries[2], "service = {svc:String}") || strings.Contains(queries[2], "toString") || !strings.Contains(params[2], "param_svc=checkout") || !strings.Contains(params[2], "param_t_from=") {
 		t.Fatalf("filter %s %s", queries[2], params[2])
+	}
+	if !strings.Contains(queries[3], "sum(length(message))") || strings.Contains(queries[3], "toString") {
+		t.Fatalf("aggregation %s", queries[3])
 	}
 	if _, err := ch.Search(context.Background(), Query{Class: QueryExact, Field: "message", Value: "x"}); err == nil {
 		t.Fatal("expected field error")

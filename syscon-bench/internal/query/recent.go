@@ -1,6 +1,8 @@
 package query
 
 import (
+	"math"
+	"math/rand/v2"
 	"strconv"
 	"sync"
 	"time"
@@ -13,7 +15,15 @@ const (
 	// The ring keeps the fields a search needs, not the message body.
 	DefaultRecent = 4096
 	// maxTokens bounds the full-text sample taken from one message.
-	maxTokens = 8
+	maxTokens = 32
+	// fullTextHeadRate is the document rate above which a token is too common
+	// to use as a full-text search. 1% of accepted events.
+	fullTextHeadRate = 0.01
+	// fullTextRareRate is the document rate a full-text search aims for.
+	// 0.01% of accepted events.
+	fullTextRareRate = 0.0001
+	// fullTextMinDocs is how many events are counted before the head filter applies.
+	fullTextMinDocs = 1000
 )
 
 // Recent is the accepted-event sample the query client draws from.
@@ -24,6 +34,8 @@ type Recent struct {
 	next  int
 	count int
 	first time.Time
+	docs  int
+	df    map[string]int
 }
 
 type record struct {
@@ -50,7 +62,7 @@ func NewRecent(n int) *Recent {
 	if n <= 0 {
 		n = DefaultRecent
 	}
-	return &Recent{buf: make([]record, n)}
+	return &Recent{buf: make([]record, n), df: map[string]int{}}
 }
 
 // Add records a batch the sink accepted. An empty batch is ignored.
@@ -68,8 +80,10 @@ func (r *Recent) Add(batch []storage.Event) {
 				r.first = t
 			}
 		}
+		tokens := collectTokens(ev.Message, maxTokens)
+		r.noteTokens(tokens)
 		r.buf[r.next] = record{
-			tokens:   collectTokens(ev.Message, maxTokens),
+			tokens:   tokens,
 			service:  ev.Service,
 			traceID:  ev.TraceID,
 			uuid:     ev.UUID,
@@ -117,6 +131,68 @@ func (r *Recent) snapshot(i int) snapshot {
 		severity: rec.severity,
 		first:    r.first,
 	}
+}
+
+// noteTokens counts each token once per event. Caller holds r.mu.
+func (r *Recent) noteTokens(tokens []string) {
+	r.docs++
+	seen := map[string]struct{}{}
+	for _, tok := range tokens {
+		if _, ok := seen[tok]; ok {
+			continue
+		}
+		seen[tok] = struct{}{}
+		r.df[tok]++
+	}
+}
+
+// pickFullText chooses a token near a 0.01% document rate.
+// Tokens seen in more than 1% of accepted events are skipped once 1000 events
+// have been counted. Caller does not hold r.mu.
+func (r *Recent) pickFullText(rng *rand.Rand, tokens []string) (string, bool) {
+	if r == nil || len(tokens) == 0 {
+		return "", false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.docs == 0 {
+		return "", false
+	}
+	best := ""
+	bestDist := math.MaxFloat64
+	ties := 0
+	seen := map[string]struct{}{}
+	for _, tok := range tokens {
+		if _, ok := seen[tok]; ok {
+			continue
+		}
+		seen[tok] = struct{}{}
+		n := r.df[tok]
+		if n == 0 {
+			continue
+		}
+		rate := float64(n) / float64(r.docs)
+		if r.docs >= fullTextMinDocs && rate > fullTextHeadRate {
+			continue
+		}
+		dist := math.Abs(rate - fullTextRareRate)
+		if best == "" || dist < bestDist {
+			best = tok
+			bestDist = dist
+			ties = 1
+			continue
+		}
+		if dist == bestDist {
+			ties++
+			if rng.IntN(ties) == 0 {
+				best = tok
+			}
+		}
+	}
+	if best == "" {
+		return "", false
+	}
+	return best, true
 }
 
 func (r *Recent) slot(i int) int {

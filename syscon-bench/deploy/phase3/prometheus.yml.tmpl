@@ -1,0 +1,30 @@
+# Generated on VM01. __STORAGE_HOST__ is the storage VM address Prometheus scrapes.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: dashboard
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["dashboard:8001"]
+
+  - job_name: clickhouse
+    static_configs:
+      - targets: ["__STORAGE_HOST__:9363"]
+
+  - job_name: elasticsearch
+    static_configs:
+      - targets: ["__STORAGE_HOST__:9114"]
+
+  - job_name: loki
+    static_configs:
+      - targets: ["__STORAGE_HOST__:3100"]
+
+  - job_name: victorialogs
+    static_configs:
+      - targets: ["__STORAGE_HOST__:9428"]
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["__STORAGE_HOST__:8080"]

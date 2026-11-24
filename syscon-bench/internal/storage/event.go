@@ -28,22 +28,25 @@ type Event struct {
 type QueryClass string
 
 const (
-	QueryFullText QueryClass = "fulltext"
-	QueryExact    QueryClass = "exact"
-	QueryFilter   QueryClass = "filter"
+	QueryFullText    QueryClass = "fulltext"
+	QueryExact       QueryClass = "exact"
+	QueryFilter      QueryClass = "filter"
+	QueryAggregation QueryClass = "aggregation"
 )
 
 // Query is one search.
 // Full-text sets Token. Exact and filter set Field and Value.
-// Filter also sets the half-open window [From, To) on event time.
-// status-code is a decimal string. Exact leaves From and To zero.
+// Filter also sets the half-open window [From, To) on event time and Service
+// from the same accepted event. status-code is a decimal string. Exact leaves
+// From and To zero.
 type Query struct {
-	Class QueryClass
-	Token string
-	Field string
-	Value string
-	From  time.Time
-	To    time.Time
+	Class   QueryClass
+	Token   string
+	Field   string
+	Value   string
+	Service string
+	From    time.Time
+	To      time.Time
 }
 
 // Result is the search response. Hits is logged by the query client.

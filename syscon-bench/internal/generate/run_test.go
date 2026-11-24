@@ -414,6 +414,8 @@ func queryUsesAccepted(q storage.Query, events []storage.Event) bool {
 			return false
 		}
 		return valueSeen(q.Field, q.Value, events)
+	case storage.QueryAggregation:
+		return q.From.Before(q.To)
 	}
 	return false
 }

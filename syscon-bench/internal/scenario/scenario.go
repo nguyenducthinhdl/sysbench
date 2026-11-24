@@ -184,6 +184,31 @@ func (r rawFile) convert() (*Scenario, error) {
 	}, nil
 }
 
+// ScaleDuration stretches or compresses the clock to seconds.
+// Ingest and query rates stay as written. The last boundary equals the new duration.
+func (s *Scenario) ScaleDuration(seconds float64) error {
+	if s == nil {
+		return errors.New("scenario: nil scenario")
+	}
+	if err := finite("duration", seconds); err != nil {
+		return err
+	}
+	if seconds <= 0 {
+		return errors.New("scenario: duration must be > 0")
+	}
+	if len(s.Segments) == 0 || s.Configs.Duration <= 0 {
+		return errors.New("scenario: duration must be > 0")
+	}
+	factor := seconds / s.Configs.Duration
+	for i := range s.Segments {
+		s.Segments[i].Start *= factor
+		s.Segments[i].TimeStamp *= factor
+	}
+	s.Segments[len(s.Segments)-1].TimeStamp = seconds
+	s.Configs.Duration = seconds
+	return nil
+}
+
 // OverrideStorage replaces the storage name and endpoint.
 // Protocol is set from the endpoint scheme. Auth is left as parsed.
 // name and endpoint must both be non-empty; the caller enforces the pair.

@@ -1,0 +1,221 @@
+{
+  "captured_at": "2026-11-06T05:51:56Z",
+  "size_gb": 10,
+  "host": "macos",
+  "clickhouse": {
+    "ch-col": {
+      "table": "ch_col",
+      "rows": 20120000,
+      "parts": 65,
+      "uncompressed_bytes": 4532424612,
+      "total_bytes": 1337594342,
+      "inverted_bytes": 25275848,
+      "inverted_detail": [
+        {
+          "name": "idx_trace",
+          "type": "bloom_filter",
+          "data_compressed_bytes": 25265368,
+          "marks_bytes": 10480
+        }
+      ],
+      "all_columns_bytes": 1283896319,
+      "body_bytes": 149718372,
+      "remainder_bytes": 28422175,
+      "columns_bytes": {
+        "HostName": 434486,
+        "SpanId": 317252666,
+        "App": 137284,
+        "Pod": 2573886,
+        "TraceId": 633605054,
+        "HttpPath": 3543392,
+        "HttpMethod": 638059,
+        "Level": 4893979,
+        "HttpStatus": 6628731,
+        "Status": 553712,
+        "Attributes": 42182499,
+        "DurationMs": 28476822,
+        "Namespace": 128123,
+        "Cluster": 123404,
+        "Container": 153327,
+        "Timestamp": 92852523,
+        "Body": 149718372
+      }
+    },
+    "ch-ft": {
+      "table": "ch_ft",
+      "rows": 20120000,
+      "parts": 51,
+      "uncompressed_bytes": 4532242330,
+      "total_bytes": 1543073705,
+      "inverted_bytes": 242669952,
+      "inverted_detail": [
+        {
+          "name": "idx_body",
+          "type": "text",
+          "data_compressed_bytes": 242662302,
+          "marks_bytes": 7650
+        }
+      ],
+      "all_columns_bytes": 1272865769,
+      "body_bytes": 145752741,
+      "remainder_bytes": 27537984,
+      "columns_bytes": {
+        "SpanId": 317512042,
+        "Container": 151545,
+        "Namespace": 125156,
+        "HttpStatus": 6801250,
+        "Body": 145752741,
+        "Timestamp": 91997625,
+        "TraceId": 634113129,
+        "Level": 4941114,
+        "Pod": 2466699,
+        "Status": 551003,
+        "HostName": 399963,
+        "App": 133172,
+        "HttpPath": 2334809,
+        "Cluster": 121497,
+        "Attributes": 39261765,
+        "HttpMethod": 601264,
+        "DurationMs": 25600995
+      }
+    },
+    "ch-ng": {
+      "table": "ch_ng",
+      "rows": 20120000,
+      "parts": 38,
+      "uncompressed_bytes": 4532246851,
+      "total_bytes": 2143362519,
+      "inverted_bytes": 866055124,
+      "inverted_detail": [
+        {
+          "name": "idx_ng",
+          "type": "text",
+          "data_compressed_bytes": 866049424,
+          "marks_bytes": 5700
+        }
+      ],
+      "all_columns_bytes": 1237308806,
+      "body_bytes": 134746345,
+      "remainder_bytes": 39998589,
+      "columns_bytes": {
+        "Body": 134746345,
+        "Level": 5028464,
+        "Timestamp": 89230303,
+        "TraceId": 628550418,
+        "Container": 150602,
+        "Namespace": 118428,
+        "HttpStatus": 6938749,
+        "SpanId": 314707792,
+        "DurationMs": 17482843,
+        "HttpMethod": 391960,
+        "Attributes": 34408967,
+        "Cluster": 116944,
+        "HostName": 276957,
+        "Pod": 2078129,
+        "Status": 559694,
+        "HttpPath": 2399879,
+        "App": 122332
+      }
+    },
+    "ch-scan": {
+      "table": "ch_scan",
+      "rows": 20120000,
+      "parts": 65,
+      "uncompressed_bytes": 4532424612,
+      "total_bytes": 1312318494,
+      "inverted_bytes": 0,
+      "inverted_detail": [],
+      "all_columns_bytes": 1283896319,
+      "body_bytes": 149718372,
+      "remainder_bytes": 28422175,
+      "columns_bytes": {
+        "Status": 553712,
+        "Attributes": 42182499,
+        "App": 137284,
+        "Level": 4893979,
+        "Body": 149718372,
+        "Timestamp": 92852523,
+        "HttpMethod": 638059,
+        "Container": 153327,
+        "Namespace": 128123,
+        "DurationMs": 28476822,
+        "HttpStatus": 6628731,
+        "TraceId": 633605054,
+        "SpanId": 317252666,
+        "HttpPath": 3543392,
+        "HostName": 434486,
+        "Cluster": 123404,
+        "Pod": 2573886
+      }
+    }
+  },
+  "elasticsearch": {
+    "es-col": {
+      "stream": "logs-sysbench-col",
+      "docs": 20120000,
+      "store_bytes": 1919741470,
+      "inverted_bytes": 68405914,
+      "stored_fields_bytes": 0,
+      "doc_values_bytes": 1851173969,
+      "points_bytes": 0,
+      "norms_bytes": 0,
+      "body_inverted_bytes": 0,
+      "body_stored_bytes": 0,
+      "body_doc_values_bytes": 86092731
+    },
+    "es-ft": {
+      "stream": "logs-sysbench-ft",
+      "docs": 20120000,
+      "store_bytes": 2048677093,
+      "inverted_bytes": 194495647,
+      "stored_fields_bytes": 0,
+      "doc_values_bytes": 1853638469,
+      "points_bytes": 0,
+      "norms_bytes": 0,
+      "body_inverted_bytes": 126312752,
+      "body_stored_bytes": 0,
+      "body_doc_values_bytes": 86654567
+    },
+    "es-phrase": {
+      "stream": "logs-sysbench-phrase",
+      "docs": 20120000,
+      "store_bytes": 2253755727,
+      "inverted_bytes": 362095467,
+      "stored_fields_bytes": 0,
+      "doc_values_bytes": 1890718107,
+      "points_bytes": 0,
+      "norms_bytes": 0,
+      "body_inverted_bytes": 295424844,
+      "body_stored_bytes": 0,
+      "body_doc_values_bytes": 89190875
+    },
+    "es-ng": {
+      "stream": "logs-sysbench-ng",
+      "docs": 20120000,
+      "store_bytes": 2288614197,
+      "inverted_bytes": 430486252,
+      "stored_fields_bytes": 0,
+      "doc_values_bytes": 1857937942,
+      "points_bytes": 0,
+      "norms_bytes": 0,
+      "body_inverted_bytes": 362431821,
+      "body_stored_bytes": 0,
+      "body_doc_values_bytes": 86989395
+    },
+    "es-scan": {
+      "stream": "logs-sysbench-scan",
+      "docs": 20120000,
+      "store_bytes": 2033956235,
+      "inverted_bytes": 63201019,
+      "stored_fields_bytes": 0,
+      "doc_values_bytes": 1970200467,
+      "points_bytes": 0,
+      "norms_bytes": 0,
+      "body_inverted_bytes": 0,
+      "body_stored_bytes": 0,
+      "body_doc_values_bytes": 97794282
+    }
+  },
+  "clickhouse_version": "26.2.19.43",
+  "elasticsearch_version": "9.5.5"
+}

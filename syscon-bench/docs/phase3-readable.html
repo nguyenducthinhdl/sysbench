@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Phase 3 — 60-minute summary (readable)</title>
+<style>
+  :root {
+    --ink: #1a1d23;
+    --muted: #5c6570;
+    --line: #e3e6ea;
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --ok: #1f7a4c;
+    --warn: #c47a12;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 32px 64px;
+    background: var(--panel);
+  }
+  h1 { font-size: 34px; margin: 0 0 8px; }
+  h2 { font-size: 22px; margin: 36px 0 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  h3 { font-size: 16px; margin: 18px 0 8px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0 20px; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .note {
+    background: #eef4ff;
+    border: 1px solid #c9d9f7;
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: var(--muted);
+    font-size: 14px;
+    margin: 12px 0 20px;
+  }
+  .warnbox {
+    background: #fff7ea;
+    border: 1px solid #f0d7a8;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 14px;
+    margin: 12px 0 20px;
+  }
+  ul { padding-left: 1.2em; color: var(--ink); }
+  li { margin: 6px 0; }
+  .muted { color: var(--muted); font-size: 13px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+</style>
+</head>
+<body>
+<article class="page" id="readable">
+  <h1>Phase 3 — 60-minute summary</h1>
+  <p class="sub">Official hours. ClickHouse and Elasticsearch on VM02 (5M preload). Loki and VictoriaLogs on VM03 (1M preload). Aggregation is <code>sum(length(message))</code>. Disk is <code>du</code> of the engine data directory.</p>
+
+  <div class="warnbox"><strong>Preload sizes differ.</strong> CH/ES used 5M rows; Loki/VL used 1M. Cross-host numbers are directional. Disk <strong>@5M</strong> for Loki/VL is measured ×5, not a real 5M run. CH <code>async_insert</code> spikes did not shrink end disk (2.02 GB vs 2.00 GB).</div>
+
+  <h2>Headline</h2>
+  <table>
+    <thead><tr><th>Engine</th><th>Host</th><th>Preload</th><th>Steady avg</th><th>Spikes p99</th><th>Disk measured</th><th>Disk @5M</th></tr></thead>
+    <tbody>
+      <tr><td>ClickHouse</td><td>VM02</td><td>5M</td><td>42.2 ms</td><td>94.9 ms</td><td>2.00 GB</td><td>2.00 GB</td></tr>
+      <tr><td>CH + async_insert</td><td>VM02</td><td>5M</td><td>—</td><td>92.8 ms</td><td>2.02 GB</td><td>2.02 GB</td></tr>
+      <tr><td>Elasticsearch</td><td>VM02</td><td>5M</td><td>12.8 ms</td><td>99.6 ms</td><td>1.54 GB</td><td>1.54 GB</td></tr>
+      <tr><td>Loki</td><td>VM03</td><td>1M</td><td>20.6 ms</td><td>94.5 ms</td><td>0.47 GB</td><td>~2.34 GB</td></tr>
+      <tr><td>VictoriaLogs</td><td>VM03</td><td>1M</td><td>12.8 ms</td><td>99.6 ms</td><td>0.23 GB</td><td>~1.15 GB</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Query p99 by class (ms)</h2>
+  <h3>Steady</h3>
+  <table>
+    <thead><tr><th>Engine</th><th>full-text</th><th>exact</th><th>filter</th><th>aggregation</th></tr></thead>
+    <tbody>
+      <tr><td>ClickHouse</td><td>37.9</td><td>99.9</td><td>24.5</td><td>24.7</td></tr>
+      <tr><td>Elasticsearch</td><td>92.4</td><td>75.3</td><td>7.0</td><td>42.3</td></tr>
+      <tr><td>Loki</td><td>35.8</td><td>99.5</td><td>24.1</td><td>24.6</td></tr>
+      <tr><td>VictoriaLogs</td><td>92.1</td><td>75.5</td><td>7.6</td><td>44.0</td></tr>
+    </tbody>
+  </table>
+  <h3>Spikes</h3>
+  <table>
+    <thead><tr><th>Engine</th><th>full-text</th><th>exact</th><th>filter</th><th>aggregation</th></tr></thead>
+    <tbody>
+      <tr><td>ClickHouse</td><td>41.4</td><td>123.4</td><td>24.6</td><td>37.4</td></tr>
+      <tr><td>CH + async_insert</td><td>33.8</td><td>99.1</td><td>23.6</td><td>25.4</td></tr>
+      <tr><td>Elasticsearch</td><td>160.5</td><td>99.6</td><td>19.8</td><td>108.5</td></tr>
+      <tr><td>Loki</td><td>41.0</td><td>113.1</td><td>24.6</td><td>37.6</td></tr>
+      <tr><td>VictoriaLogs</td><td>161.3</td><td>99.6</td><td>19.6</td><td>102.7</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Disk usage (1M → 5M scale)</h2>
+  <h3>Spikes</h3>
+  <table>
+    <thead><tr><th>Engine</th><th>Preload</th><th>Measured</th><th>@5M</th></tr></thead>
+    <tbody>
+      <tr><td>ClickHouse</td><td>5M</td><td>2.00 GB</td><td>2.00 GB</td></tr>
+      <tr><td>Elasticsearch</td><td>5M</td><td>1.54 GB</td><td>1.54 GB</td></tr>
+      <tr><td>Loki</td><td>1M</td><td>0.47 GB</td><td>~2.34 GB</td></tr>
+      <tr><td>VictoriaLogs</td><td>1M</td><td>0.23 GB</td><td>~1.15 GB</td></tr>
+    </tbody>
+  </table>
+  <h3>Steady</h3>
+  <table>
+    <thead><tr><th>Engine</th><th>Preload</th><th>Measured</th><th>@5M</th></tr></thead>
+    <tbody>
+      <tr><td>ClickHouse</td><td>5M</td><td>1.70 GB</td><td>1.70 GB</td></tr>
+      <tr><td>Elasticsearch</td><td>5M</td><td>1.48 GB</td><td>1.48 GB</td></tr>
+      <tr><td>Loki</td><td>1M</td><td>0.37 GB</td><td>~1.87 GB</td></tr>
+      <tr><td>VictoriaLogs</td><td>1M</td><td>0.18 GB</td><td>~0.91 GB</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">At equal 5M scale: VL ~1.15 GB &lt; ES 1.54 GB &lt; CH 2.00 GB &lt; Loki ~2.34 GB (spikes).</p>
+
+  <h2>Resources (spikes hour peak)</h2>
+  <table>
+    <thead><tr><th>Engine</th><th>CPU</th><th>Peak mem</th><th>Disk measured</th><th>Disk @5M</th></tr></thead>
+    <tbody>
+      <tr><td>ClickHouse</td><td>0.67</td><td>1.32 GB</td><td>2.00 GB</td><td>2.00 GB</td></tr>
+      <tr><td>Elasticsearch</td><td>0.84</td><td>0.66 GB</td><td>1.54 GB</td><td>1.54 GB</td></tr>
+      <tr><td>Loki</td><td>3.61</td><td>9.38 GB</td><td>0.47 GB</td><td>~2.34 GB</td></tr>
+      <tr><td>VictoriaLogs</td><td>0.68</td><td>~0.23 GB*</td><td>0.23 GB</td><td>~1.15 GB</td></tr>
+    </tbody>
+  </table>
+  <div class="note">*VL spikes Peak Used Mem was <code>no series</code>. Estimate: smoke spikes 197 MB × VL steady smoke→hour (164→188 MB, ×1.15) ≈ 227 MB (~0.23 GB).</div>
+
+  <h2>Brief read</h2>
+  <ul>
+    <li><strong>Elasticsearch</strong> — fastest overall query average on 5M (steady 12.8 ms). Filters cheap. Full-text / aggregation p99 rise under spikes. Disk ~1.54 GB.</li>
+    <li><strong>ClickHouse</strong> — higher exact-match cost; strong on <code>sum(length(message))</code>. Largest measured disk among 5M engines (~2.0 GB). async_insert did not shrink disk.</li>
+    <li><strong>Loki</strong> — small at 1M (~0.47 GB) but ~2.34 GB if scaled ×5; highest CPU/mem (~9 GB). Stream+chunk+index layout costs more disk than VL.</li>
+    <li><strong>VictoriaLogs</strong> — smallest disk even @5M scale (~1.15 GB). ES-like filter latency; full-text/agg p99 similar to ES under spikes.</li>
+  </ul>
+
+  <p class="muted">Sources: phase3-full-60mins.md, phase3-full-60mins-vm03.md, phase3-full-60mins-async-insert.md, phase3-full-60mins-summary.md, phase3-smoke-full-5mins.md.</p>
+</article>
+</body>
+</html>

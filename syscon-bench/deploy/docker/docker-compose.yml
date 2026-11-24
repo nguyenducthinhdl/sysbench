@@ -30,6 +30,7 @@ services:
     volumes:
       - ch-data:/var/lib/clickhouse
       - ./clickhouse/prometheus.xml:/etc/clickhouse-server/config.d/prometheus.xml:ro
+      - ./clickhouse/async-insert.xml:/etc/clickhouse-server/users.d/async-insert.xml:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8123/ping"]
       interval: 5s
@@ -73,6 +74,8 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
+    ports:
+      - "9114:9114"
 
   loki:
     profiles: ["loki"]
@@ -90,6 +93,7 @@ services:
     command:
       - -storageDataPath=/vlogs
       - -httpListenAddr=:9428
+      - -retentionPeriod=100y
     ports:
       - "9428:9428"
     volumes:
@@ -102,6 +106,8 @@ services:
     command:
       - --docker_only=true
       - --housekeeping_interval=10s
+    ports:
+      - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /sys:/sys:ro
@@ -123,7 +129,7 @@ services:
       - --password
       - admin
     ports:
-      - "8001:8001"
+      - "${DASHBOARD_PORT:-8001}:8001"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8001/health"]
       interval: 5s
@@ -140,9 +146,9 @@ services:
       - --storage.tsdb.retention.time=7d
       - --web.enable-lifecycle
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${PROM_CONFIG:-./prometheus/prometheus.yml}:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
 
   grafana:
@@ -155,7 +161,7 @@ services:
       GF_USERS_DEFAULT_THEME: dark
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/syscon-bench.json
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -175,10 +181,15 @@ services:
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
       STORAGE_READY: ${STORAGE_READY:-}
       SCENARIO: ${SCENARIO:-test-scenario-01.yaml}
+      DURATION: ${DURATION:-}
+      PRELOAD_ROWS: ${PRELOAD_ROWS:-}
+      PRELOAD_PATH: ${PRELOAD_PATH:-}
+      PRELOAD_BATCH: ${PRELOAD_BATCH:-200}
       DASHBOARD_UPSTREAM: dashboard:8001
     volumes:
       - ../../log-generator/scenarios:/scenarios:ro
       - ${MESSAGES_FILE:-./messages.txt}:/data/messages.txt:ro
+      - ${PRELOAD_HOST_FILE:-../../data/preload-1m.jsonl}:/data/preload.jsonl:ro
     depends_on:
       - dashboard
     ulimits:

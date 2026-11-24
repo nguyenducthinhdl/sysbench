@@ -27,8 +27,13 @@ query_range:
   results_cache:
     cache:
       embedded_cache:
-        enabled: true
+        enabled: false
         max_size_mb: 100
+
+querier:
+  # Preload lines are dated 2026-01-01 and stay in the ingester until a chunk
+  # flush. The stock 3h window would not count them.
+  query_ingesters_within: 8760h
 
 schema_config:
   configs:
@@ -46,7 +51,11 @@ limits_config:
   ingestion_rate_mb: 64
   ingestion_burst_size_mb: 128
   max_line_size: 4MB
-  max_query_series: 500
+  # One stream is service x component x severity. The field pool has 1000
+  # services, so the stock cap of a few thousand streams rejects the file.
+  max_streams_per_user: 100000
+  max_global_streams_per_user: 100000
+  max_query_series: 100000
   max_entries_limit_per_query: 5000
   volume_enabled: true
   metric_aggregation_enabled: true

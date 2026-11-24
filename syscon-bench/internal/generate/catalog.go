@@ -32,6 +32,32 @@ var serviceStems = []string{
 	"envoy", "client", "checkout", "inventory", "auth",
 }
 
+// servicePool is 100 names of each stem. The suffix is not the row number,
+// and the list is shuffled, so the field file is not stem-0000, stem-0001, ...
+func servicePool() []string {
+	const seed1, seed2 = 0x5e47, 0x9a11
+	rng := rand.New(rand.NewPCG(seed1, seed2))
+	perStem := PoolSize / len(serviceStems)
+	used := make(map[string]struct{}, PoolSize)
+	names := make([]string, 0, PoolSize)
+	for _, stem := range serviceStems {
+		n := 0
+		for n < perStem {
+			name := fmt.Sprintf("%s-%04d", stem, rng.IntN(10000))
+			if _, ok := used[name]; ok {
+				continue
+			}
+			used[name] = struct{}{}
+			names = append(names, name)
+			n++
+		}
+	}
+	rng.Shuffle(len(names), func(i, j int) {
+		names[i], names[j] = names[j], names[i]
+	})
+	return names
+}
+
 var (
 	reUser  = regexp.MustCompile(`\busr-\d+\b`)
 	reOrder = regexp.MustCompile(`\bord-\d+\b`)
@@ -54,10 +80,10 @@ func WriteFields(path string) error {
 	if err := w.Write([]string{"instance-id", "ip-address", "host-name", "service"}); err != nil {
 		return err
 	}
+	services := servicePool()
 	for i := 0; i < PoolSize; i++ {
 		id := identityAt(i)
-		service := fmt.Sprintf("%s-%04d", serviceStems[i%len(serviceStems)], i)
-		if err := w.Write([]string{id.instanceID, id.ip, id.host, service}); err != nil {
+		if err := w.Write([]string{id.instanceID, id.ip, id.host, services[i]}); err != nil {
 			return err
 		}
 	}

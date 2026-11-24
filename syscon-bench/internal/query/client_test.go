@@ -20,14 +20,17 @@ import (
 )
 
 func TestClassBuckets(t *testing.T) {
-	if classFor(0) != storage.QueryFullText || classFor(29) != storage.QueryFullText {
+	if classFor(0) != storage.QueryFullText || classFor(24) != storage.QueryFullText {
 		t.Fatal("fulltext")
 	}
-	if classFor(30) != storage.QueryExact || classFor(59) != storage.QueryExact {
+	if classFor(25) != storage.QueryExact || classFor(49) != storage.QueryExact {
 		t.Fatal("exact")
 	}
-	if classFor(60) != storage.QueryFilter || classFor(99) != storage.QueryFilter {
+	if classFor(50) != storage.QueryFilter || classFor(74) != storage.QueryFilter {
 		t.Fatal("filter")
+	}
+	if classFor(75) != storage.QueryAggregation || classFor(99) != storage.QueryAggregation {
+		t.Fatal("aggregation")
 	}
 }
 
@@ -92,7 +95,7 @@ func TestMakeQueryPredicates(t *testing.T) {
 		}
 		seenExact[q.Field] = q.Value
 		q, ok = makeQuery(rng, storage.QueryFilter, snap, runStart, now)
-		if !ok || !q.From.Equal(snap.first) || !q.To.Equal(now) || q.Value != snap.value(q.Field) || q.Token != "" {
+		if !ok || !q.From.Equal(snap.first) || !q.To.Equal(now) || q.Value != snap.value(q.Field) || q.Service != snap.service || q.Token != "" {
 			t.Fatalf("filter %+v", q)
 		}
 		seenFilter[q.Field] = q.Value
@@ -158,18 +161,18 @@ func TestExecuteMixAndSkip(t *testing.T) {
 			if query.Value != fieldOf(acceptedEvent("", ""), query.Field) || !query.From.Before(query.To) {
 				t.Fatalf("%+v", query)
 			}
+		case storage.QueryAggregation:
+			if query.Field != "" || query.Value != "" || !query.From.Before(query.To) {
+				t.Fatalf("%+v", query)
+			}
 		default:
 			t.Fatalf("class %s", query.Class)
 		}
 	}
-	if counts[storage.QueryFullText] < n*25/100 || counts[storage.QueryFullText] > n*35/100 {
-		t.Fatalf("fulltext %d", counts[storage.QueryFullText])
-	}
-	if counts[storage.QueryExact] < n*25/100 || counts[storage.QueryExact] > n*35/100 {
-		t.Fatalf("exact %d", counts[storage.QueryExact])
-	}
-	if counts[storage.QueryFilter] < n*35/100 || counts[storage.QueryFilter] > n*45/100 {
-		t.Fatalf("filter %d", counts[storage.QueryFilter])
+	for _, class := range []storage.QueryClass{storage.QueryFullText, storage.QueryExact, storage.QueryFilter, storage.QueryAggregation} {
+		if counts[class] < n*20/100 || counts[class] > n*30/100 {
+			t.Fatalf("%s %d", class, counts[class])
+		}
 	}
 	if len(obs.calls) != n {
 		t.Fatalf("observed %d", len(obs.calls))

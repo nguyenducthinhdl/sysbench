@@ -53,9 +53,23 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --scenario)
-      case "${2:?--scenario needs 01 or 02}" in
+      case "${2:?--scenario needs a scenario file}" in
         01|test-scenario-01|test-scenario-01.yaml) SCENARIO=test-scenario-01.yaml ;;
         02|test-scenario-02|test-scenario-02.yaml) SCENARIO=test-scenario-02.yaml ;;
+        phase3-*.yaml)
+          if [[ ! -f "../../log-generator/scenarios/$2" ]]; then
+            echo "unknown scenario $2" >&2
+            exit 2
+          fi
+          SCENARIO="$2"
+          ;;
+        phase3-*)
+          if [[ ! -f "../../log-generator/scenarios/${2}.yaml" ]]; then
+            echo "unknown scenario $2" >&2
+            exit 2
+          fi
+          SCENARIO="${2}.yaml"
+          ;;
         *) echo "unknown scenario $2" >&2; exit 2 ;;
       esac
       shift

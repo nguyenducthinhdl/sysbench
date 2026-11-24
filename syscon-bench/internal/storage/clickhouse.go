@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -247,20 +248,28 @@ func clickHouseSQL(q Query) (string, map[string]string, error) {
 		params["param_val"] = q.Value
 		return fmt.Sprintf("SELECT count() AS hits FROM syscon.logs WHERE toString(%s) = {val:String} FORMAT JSON", col), params, nil
 	case QueryFilter:
-		col, err := clickHouseColumn(q.Class, q.Field)
-		if err != nil {
-			return "", nil, err
-		}
-		if q.Value == "" {
-			return "", nil, fmt.Errorf("clickhouse: filter value is empty")
-		}
 		if q.From.IsZero() || !q.From.Before(q.To) {
 			return "", nil, fmt.Errorf("clickhouse: filter window is empty")
 		}
-		params["param_val"] = q.Value
+		svc := q.Service
+		if svc == "" && q.Field == "service" {
+			svc = q.Value
+		}
+		if svc == "" {
+			return "", nil, fmt.Errorf("clickhouse: filter service is empty")
+		}
+		params["param_svc"] = svc
 		params["param_t_from"] = q.From.UTC().Format("2006-01-02 15:04:05.000")
 		params["param_t_to"] = q.To.UTC().Format("2006-01-02 15:04:05.000")
-		sql := fmt.Sprintf("SELECT count() AS hits FROM syscon.logs WHERE time >= {t_from:DateTime64(3)} AND time < {t_to:DateTime64(3)} AND toString(%s) = {val:String} FORMAT JSON", col)
+		sql := "SELECT count() AS hits FROM syscon.logs WHERE service = {svc:String} AND time >= {t_from:DateTime64(3)} AND time < {t_to:DateTime64(3)} FORMAT JSON"
+		return sql, params, nil
+	case QueryAggregation:
+		if q.From.IsZero() || !q.From.Before(q.To) {
+			return "", nil, fmt.Errorf("clickhouse: aggregation window is empty")
+		}
+		params["param_t_from"] = q.From.UTC().Format("2006-01-02 15:04:05.000")
+		params["param_t_to"] = q.To.UTC().Format("2006-01-02 15:04:05.000")
+		sql := "SELECT sum(length(message)) AS hits FROM syscon.logs WHERE time >= {t_from:DateTime64(3)} AND time < {t_to:DateTime64(3)} FORMAT JSON"
 		return sql, params, nil
 	default:
 		return "", nil, fmt.Errorf("clickhouse: unknown query class %q", q.Class)
@@ -296,4 +305,36 @@ func clickHouseHits(body []byte) (int, error) {
 		return 0, nil
 	}
 	return asInt(parsed.Data[0].Hits)
+}
+
+// Stored is the number of rows in syscon.logs. A missing table is zero.
+func (c *ClickHouse) Stored(ctx context.Context) (int64, error) {
+	if err := c.ensure(ctx); err != nil {
+		return 0, err
+	}
+	u, err := endpointURL(c.endpoint, "/")
+	if err != nil {
+		return 0, fmt.Errorf("clickhouse: endpoint: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader("SELECT count() FROM syscon.logs FORMAT TabSeparated"))
+	if err != nil {
+		return 0, fmt.Errorf("clickhouse: request: %w", err)
+	}
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	c.auth(req)
+	status, body, err := call(c.client, req, false)
+	if err != nil {
+		return 0, fmt.Errorf("clickhouse: %w", err)
+	}
+	if missingStore(status, body) {
+		return 0, nil
+	}
+	if !okStatus(status) {
+		return 0, httpStatusError("clickhouse", status, body)
+	}
+	n, err := parseInt64Body(body)
+	if err != nil {
+		return 0, fmt.Errorf("clickhouse: count: %w", err)
+	}
+	return n, nil
 }

@@ -21,7 +21,7 @@ const PushInterval = 15 * time.Second
 var queryBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
 
 // QueryClasses are the histogram and error-counter label values.
-var QueryClasses = []string{"fulltext", "exact", "filter"}
+var QueryClasses = []string{"fulltext", "exact", "filter", "aggregation"}
 
 // Metrics are the five client series for one storage and scenario.
 type Metrics struct {

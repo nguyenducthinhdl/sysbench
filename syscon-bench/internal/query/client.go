@@ -84,9 +84,17 @@ func (c *Client) plan(runStart, now time.Time) (storage.Query, bool) {
 			continue
 		}
 		q, ok := makeQuery(c.rng, class, snap, runStart, now)
-		if ok {
-			return q, true
+		if !ok {
+			continue
 		}
+		if q.Class == storage.QueryFullText {
+			tok, ok := c.Recent.pickFullText(c.rng, snap.tokens)
+			if !ok {
+				continue
+			}
+			q.Token = tok
+		}
+		return q, true
 	}
 	return storage.Query{}, false
 }
@@ -147,7 +155,7 @@ func (c *Client) logger() *log.Logger {
 	return log.Default()
 }
 
-// pickClass draws the fixed mix: 30 full-text, 30 exact, 40 filter.
+// pickClass draws the fixed mix: 25 full-text, 25 exact, 25 filter, 25 aggregation.
 // One hundred integer buckets keep the split exact.
 func pickClass(rng *rand.Rand) storage.QueryClass {
 	return classFor(rng.IntN(100))
@@ -155,12 +163,14 @@ func pickClass(rng *rand.Rand) storage.QueryClass {
 
 func classFor(n int) storage.QueryClass {
 	switch {
-	case n < 30:
+	case n < 25:
 		return storage.QueryFullText
-	case n < 60:
+	case n < 50:
 		return storage.QueryExact
-	default:
+	case n < 75:
 		return storage.QueryFilter
+	default:
+		return storage.QueryAggregation
 	}
 }
 
@@ -187,11 +197,20 @@ func makeQuery(rng *rand.Rand, class storage.QueryClass, snap snapshot, runStart
 		}
 		from, to := filterWindow(now, runStart, snap.first)
 		return storage.Query{
-			Class: storage.QueryFilter,
-			Field: field,
-			Value: value,
-			From:  from,
-			To:    to,
+			Class:   storage.QueryFilter,
+			Field:   field,
+			Value:   value,
+			Service: snap.service,
+			From:    from,
+			To:      to,
+		}, true
+	case storage.QueryAggregation:
+		from, to := filterWindow(now, runStart, snap.first)
+		return storage.Query{
+			Class:   storage.QueryAggregation,
+			Service: snap.service,
+			From:    from,
+			To:      to,
 		}, true
 	default:
 		return storage.Query{}, false
@@ -232,6 +251,10 @@ func describe(q storage.Query) string {
 	case storage.QueryFilter:
 		return fmt.Sprintf("field=%s value=%s from=%s to=%s",
 			q.Field, q.Value,
+			q.From.UTC().Format(time.RFC3339Nano),
+			q.To.UTC().Format(time.RFC3339Nano))
+	case storage.QueryAggregation:
+		return fmt.Sprintf("sum=length(message) from=%s to=%s",
 			q.From.UTC().Format(time.RFC3339Nano),
 			q.To.UTC().Format(time.RFC3339Nano))
 	default:

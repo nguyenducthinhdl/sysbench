@@ -1,6 +1,7 @@
 package query
 
 import (
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -42,6 +43,27 @@ func TestRecentRingKeepsFirstTime(t *testing.T) {
 	}
 	if len(first.tokens) != 2 || first.tokens[0] != "cccc" {
 		t.Fatalf("tokens %q", first.tokens)
+	}
+}
+
+func TestPickFullTextUsesTheRareToken(t *testing.T) {
+	r := NewRecent(4)
+	for i := 0; i < 10000; i++ {
+		msg := "booking accepted INFO request"
+		if i == 0 {
+			msg = "booking accepted raretermzzzz"
+		}
+		r.Add([]storage.Event{{
+			Message: msg, Time: "2026-11-02T00:00:01.000Z", StatusCode: 200, LogSeverity: "info",
+		}})
+	}
+	rng := rand.New(rand.NewPCG(1, 1))
+	tok, ok := r.pickFullText(rng, []string{"booking", "accepted", "raretermzzzz"})
+	if !ok || tok != "raretermzzzz" {
+		t.Fatalf("token %q ok %v", tok, ok)
+	}
+	if _, ok := r.pickFullText(rng, []string{"booking", "accepted"}); ok {
+		t.Fatal("head tokens were searched")
 	}
 }
 

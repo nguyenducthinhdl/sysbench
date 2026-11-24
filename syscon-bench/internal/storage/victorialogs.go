@@ -159,9 +159,57 @@ func victoriaQuery(q Query) (url.Values, error) {
 			form.Set("end", q.To.UTC().Format(time.RFC3339Nano))
 		}
 		filter = quoteLiteral(q.Field) + ":=" + quoteLiteral(q.Value)
+	case QueryAggregation:
+		if q.From.IsZero() || !q.From.Before(q.To) {
+			return nil, fmt.Errorf("victorialogs: aggregation window is empty")
+		}
+		form.Set("query", "* | stats sum(len(message)) as hits")
+		form.Set("start", q.From.UTC().Format(time.RFC3339Nano))
+		form.Set("end", q.To.UTC().Format(time.RFC3339Nano))
+		return form, nil
 	default:
 		return nil, fmt.Errorf("victorialogs: unknown query class %q", q.Class)
 	}
 	form.Set("query", filter+" | stats count() as hits")
+	if q.Class != QueryFilter {
+		// The stock server keeps 7 days and, with no start, searches only the
+		// recent window. The preload file is dated 2026-01-01, so exact and
+		// full-text searches cover from 2020 through now.
+		form.Set("start", "2020-01-01T00:00:00Z")
+		form.Set("end", time.Now().UTC().Add(time.Hour).Format(time.RFC3339))
+	}
 	return form, nil
+}
+
+// Stored is the number of log lines VictoriaLogs currently holds.
+func (v *VictoriaLogs) Stored(ctx context.Context) (int64, error) {
+	u, err := endpointURL(v.endpoint, "/select/logsql/stats_query")
+	if err != nil {
+		return 0, fmt.Errorf("victorialogs: endpoint: %w", err)
+	}
+	form := url.Values{}
+	form.Set("query", "* | stats count() as hits")
+	form.Set("start", "2020-01-01T00:00:00Z")
+	form.Set("end", time.Now().UTC().Add(time.Hour).Format(time.RFC3339))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader(form.Encode()))
+	if err != nil {
+		return 0, fmt.Errorf("victorialogs: request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	setAuth(req, v.user, v.pass)
+	status, body, err := call(v.client, req, true)
+	if err != nil {
+		return 0, fmt.Errorf("victorialogs: %w", err)
+	}
+	if missingStore(status, body) {
+		return 0, nil
+	}
+	if !okStatus(status) {
+		return 0, httpStatusError("victorialogs", status, body)
+	}
+	n, err := promVectorInt64(body)
+	if err != nil {
+		return 0, fmt.Errorf("victorialogs: count: %w", err)
+	}
+	return n, nil
 }

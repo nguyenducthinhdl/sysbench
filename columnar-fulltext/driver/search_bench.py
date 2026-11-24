@@ -23,8 +23,8 @@ import queries  # noqa: E402
 import templates  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "results" / "columnar-fulltext-search.json"
 REPS = 3
+SIZE_GB = 1
 T0, T1 = queries.WINDOWS["7d"]
 CH_T0, CH_T1 = queries.ch_time(T0), queries.ch_time(T1)
 ES_T0, ES_T1 = queries.es_time(T0), queries.es_time(T1)
@@ -121,7 +121,7 @@ def time_clickhouse(sql: str, comment: str) -> dict:
 
 def time_elasticsearch(stream: str, body: dict) -> dict:
     started = time.perf_counter()
-    result = gate.es("POST", f"/{stream}/_search?request_cache=false", body)
+    result = gate.es("POST", f"/{stream}/_search?request_cache=false", body, timeout=7200)
     wall_ms = (time.perf_counter() - started) * 1000
     return {
         "count": int(result["hits"]["total"]["value"]),
@@ -205,7 +205,26 @@ def run_engine(engine: str, rows: list[dict]) -> None:
             )
 
 
+def parse_args(argv: list[str]) -> int:
+    size = 1
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--size":
+            size = int(argv[i + 1])
+            i += 2
+            continue
+        if arg.startswith("--size="):
+            size = int(arg.split("=", 1)[1])
+            i += 1
+            continue
+        gate.fail(f"unknown arg {arg}")
+    return size
+
+
 def main() -> int:
+    global SIZE_GB
+    SIZE_GB = parse_args(sys.argv[1:])
     rows: list[dict] = []
     run_engine("elasticsearch", rows)
     run_engine("clickhouse", rows)
@@ -214,8 +233,12 @@ def main() -> int:
         counts = {row["arm"]: row["count"] for row in rows if row["query_id"] == query["id"]}
         if len(set(counts.values())) != 1:
             mismatches.append({"query_id": query["id"], "counts": counts})
+    out = ROOT / "results" / "columnar-fulltext-search.json"
+    if SIZE_GB != 1:
+        out = ROOT / "results" / f"columnar-fulltext-search-{SIZE_GB}gb.json"
     document = {
         "host": "macos",
+        "size_gb": SIZE_GB,
         "page_cache_dropped": False,
         "repetitions": REPS,
         "window": "7d",
@@ -225,9 +248,9 @@ def main() -> int:
         "rows": rows,
         "count_mismatches": mismatches,
     }
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(document, indent=2) + "\n")
-    gate.log(f"wrote {OUT}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(document, indent=2) + "\n")
+    gate.log(f"wrote {out}")
     if mismatches:
         gate.log(f"count mismatches: {mismatches}")
         return 1

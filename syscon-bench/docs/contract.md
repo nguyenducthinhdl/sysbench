@@ -299,13 +299,16 @@ draws one class.
 
 | `query_class` | Share | Search |
 | --- | ---: | --- |
-| `fulltext` | 30% | One token from `message` of an accepted event. |
-| `exact` | 30% | Equality on one of `service`, `trace-id`, `uuid`, `status-code`. |
-| `filter` | 40% | A time window plus equality on one of `service`, `log-severity`, `status-code`. |
+| `fulltext` | 25% | One token from `message` of an accepted event. |
+| `exact` | 25% | Equality on one of `service`, `trace-id`, `uuid`, `status-code`. |
+| `filter` | 25% | A time window plus equality on one of `service`, `log-severity`, `status-code`. |
+| `aggregation` | 25% | Sum of `message` lengths in the same 60-second window. |
 
 Full-text splits `message` on non-alphanumeric characters and keeps the case.
 The token has length at least 4 and comes from an accepted message. The query
-is a single token.
+is a single token. After 1000 accepted events, a token seen in more than 1% of
+events is not searched. The token chosen is the one whose document rate is
+closest to 0.01%.
 
 Exact match picks the field uniformly from those four and uses a value from an
 accepted event. No time predicate.
@@ -336,7 +339,7 @@ classic histogram. Buckets for `bench_query_duration_seconds`, in seconds:
 | `bench_query_errors_total` | counter | `storage`, `scenario`, `query_class` | Queries that timed out or returned non-2xx. |
 
 `storage` is the storage entry's `name`. `scenario` is the top-level scenario
-`name`. `query_class` is `fulltext`, `exact`, or `filter`. Ingest series omit
+`name`. `query_class` is `fulltext`, `exact`, `filter`, or `aggregation`. Ingest series omit
 `query_class`.
 
 A query whose body was fully read is observed in the histogram, including a

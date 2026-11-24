@@ -63,6 +63,11 @@ func TestElasticsearchPushAndSearch(t *testing.T) {
 	if _, err := es.Search(context.Background(), filterQuery()); err != nil {
 		t.Fatal(err)
 	}
+	agg := filterQuery()
+	agg.Class = QueryAggregation
+	if _, err = es.Search(context.Background(), agg); err != nil {
+		t.Fatal(err)
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -75,10 +80,10 @@ func TestElasticsearchPushAndSearch(t *testing.T) {
 	if !strings.Contains(bulk, `"create"`) || !strings.Contains(bulk, ev.UUID) || !strings.Contains(bulk, `"@timestamp"`) || !strings.Contains(bulk, `"name":"host-0000"`) {
 		t.Fatalf("bulk %s", bulk)
 	}
-	if len(searches) != 3 {
+	if len(searches) != 4 {
 		t.Fatalf("searches %d", len(searches))
 	}
-	if !strings.Contains(searches[0], `"match"`) || !strings.Contains(searches[0], "checkout") {
+	if !strings.Contains(searches[0], `"term"`) || !strings.Contains(searches[0], "checkout") {
 		t.Fatalf("fulltext %s", searches[0])
 	}
 	var exact struct {
@@ -94,6 +99,35 @@ func TestElasticsearchPushAndSearch(t *testing.T) {
 	}
 	if !strings.Contains(searches[2], `"@timestamp"`) || !strings.Contains(searches[2], `"gte"`) {
 		t.Fatalf("filter %s", searches[2])
+	}
+	if !strings.Contains(searches[3], `"message_bytes"`) || !strings.Contains(searches[3], "message.length()") {
+		t.Fatalf("aggregation %s", searches[3])
+	}
+}
+
+func TestElasticsearchPushReadsALargeBulkResponse(t *testing.T) {
+	var items []string
+	for i := 0; i < 200; i++ {
+		items = append(items, `{"create":{"status":201,"_id":"x"}}`)
+	}
+	body := `{"took":1,"errors":false,"items":[` + strings.Join(items, ",") + `]}`
+	if len(body) <= 4096 {
+		t.Fatalf("fixture is %d bytes", len(body))
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/_bulk") {
+			_, _ = io.WriteString(w, body)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	es, err := NewElasticsearch(srv.URL, "admin", "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := es.Push(context.Background(), []Event{sampleEvent()}); err != nil {
+		t.Fatal(err)
 	}
 }
 

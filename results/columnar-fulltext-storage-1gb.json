@@ -1,0 +1,108 @@
+{
+  "captured_at": "2026-10-29T00:00:00Z",
+  "size_gb": 1,
+  "host": "macos",
+  "source": "report_CH_ES_1GB.md",
+  "note": "1 GB storage snapshot from the published 2 CPU / 2 GB Colima run. Search times from that run are not on the same VM as 2/5/10 GB.",
+  "clickhouse_version": "26.2.19.43",
+  "elasticsearch_version": "9.5.5",
+  "clickhouse": {
+    "ch-col": {
+      "table": "ch_col",
+      "rows": 2016000,
+      "parts": 27,
+      "total_bytes": 141630835,
+      "inverted_bytes": 2534169,
+      "all_columns_bytes": 116265979,
+      "body_bytes": 15347851,
+      "remainder_bytes": 22830687
+    },
+    "ch-ft": {
+      "table": "ch_ft",
+      "rows": 2016000,
+      "parts": 27,
+      "total_bytes": 165256919,
+      "inverted_bytes": 26160253,
+      "all_columns_bytes": 116265979,
+      "body_bytes": 15347851,
+      "remainder_bytes": 22830687
+    },
+    "ch-ng": {
+      "table": "ch_ng",
+      "rows": 2016000,
+      "parts": 34,
+      "total_bytes": 247277238,
+      "inverted_bytes": 106458860,
+      "all_columns_bytes": 74666442,
+      "body_bytes": 9854014,
+      "remainder_bytes": 66151936
+    },
+    "ch-scan": {
+      "table": "ch_scan",
+      "rows": 2016000,
+      "parts": 27,
+      "total_bytes": 139096666,
+      "inverted_bytes": 0,
+      "all_columns_bytes": 116265979,
+      "body_bytes": 15347851,
+      "remainder_bytes": 22830687
+    }
+  },
+  "elasticsearch": {
+    "es-col": {
+      "stream": "logs-sysbench-col",
+      "docs": 2016000,
+      "store_bytes": 201012637,
+      "inverted_bytes": 6539051,
+      "doc_values_bytes": 194411818,
+      "points_bytes": 0,
+      "stored_fields_bytes": 0,
+      "body_inverted_bytes": 0,
+      "body_doc_values_bytes": 9369882
+    },
+    "es-ft": {
+      "stream": "logs-sysbench-ft",
+      "docs": 2016000,
+      "store_bytes": 219336457,
+      "inverted_bytes": 24060167,
+      "doc_values_bytes": 195066144,
+      "points_bytes": 0,
+      "stored_fields_bytes": 0,
+      "body_inverted_bytes": 17526369,
+      "body_doc_values_bytes": 9400552
+    },
+    "es-phrase": {
+      "stream": "logs-sysbench-phrase",
+      "docs": 2016000,
+      "store_bytes": 243550248,
+      "inverted_bytes": 41886423,
+      "doc_values_bytes": 201420501,
+      "points_bytes": 0,
+      "stored_fields_bytes": 0,
+      "body_inverted_bytes": 35396305,
+      "body_doc_values_bytes": 9552038
+    },
+    "es-ng": {
+      "stream": "logs-sysbench-ng",
+      "docs": 2016000,
+      "store_bytes": 253352163,
+      "inverted_bytes": 52739844,
+      "doc_values_bytes": 200524966,
+      "points_bytes": 0,
+      "stored_fields_bytes": 0,
+      "body_inverted_bytes": 46209559,
+      "body_doc_values_bytes": 9396516
+    },
+    "es-scan": {
+      "stream": "logs-sysbench-scan",
+      "docs": 2016000,
+      "store_bytes": 213081473,
+      "inverted_bytes": 5747926,
+      "doc_values_bytes": 206892156,
+      "points_bytes": 0,
+      "stored_fields_bytes": 0,
+      "body_inverted_bytes": 0,
+      "body_doc_values_bytes": 10535157
+    }
+  }
+}

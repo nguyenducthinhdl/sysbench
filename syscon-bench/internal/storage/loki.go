@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -34,6 +35,9 @@ type Loki struct {
 	user     string
 	pass     string
 	client   *http.Client
+
+	mu  sync.Mutex
+	seq int64
 }
 
 type lokiKey struct {
@@ -61,7 +65,7 @@ func (l *Loki) Push(ctx context.Context, batch []Event) error {
 	if len(batch) == 0 {
 		return nil
 	}
-	body, err := lokiBody(batch)
+	body, err := l.lokiBody(batch)
 	if err != nil {
 		return fmt.Errorf("loki: encode: %w", err)
 	}
@@ -121,7 +125,7 @@ func (l *Loki) Search(ctx context.Context, q Query) (Result, error) {
 	return Result{Hits: hits, Body: body}, nil
 }
 
-func lokiBody(batch []Event) ([]byte, error) {
+func (l *Loki) lokiBody(batch []Event) ([]byte, error) {
 	type line struct {
 		ns   string
 		text string
@@ -154,7 +158,7 @@ func lokiBody(batch []Event) ([]byte, error) {
 		put("version", ev.Version)
 		put("jira_id", ev.JiraID)
 		put("group_id", ev.GroupID)
-		groups[key] = append(groups[key], line{ns: lokiNanos(ev.Time), text: ev.Message, meta: meta})
+		groups[key] = append(groups[key], line{ns: l.lokiNanos(ev.Time), text: ev.Message, meta: meta})
 	}
 	type stream struct {
 		Stream map[string]string `json:"stream"`
@@ -196,12 +200,16 @@ func lokiBody(batch []Event) ([]byte, error) {
 	return json.Marshal(payload)
 }
 
-func lokiNanos(s string) string {
-	t, err := time.Parse(time.RFC3339Nano, s)
-	if err != nil {
-		t = time.Now().UTC()
-	}
-	return strconv.FormatInt(t.UTC().UnixNano(), 10)
+// Loki keeps one entry per nanosecond in a stream, and a query only sees
+// recent ingester data. The preload file stamps every row at 2026-01-01, so
+// each line is stored at the current time plus a unique nanosecond. The file
+// itself is unchanged.
+func (l *Loki) lokiNanos(string) string {
+	l.mu.Lock()
+	l.seq++
+	n := l.seq
+	l.mu.Unlock()
+	return strconv.FormatInt(time.Now().UTC().UnixNano()+n, 10)
 }
 
 func lokiQuery(q Query) (string, string, error) {
@@ -267,9 +275,52 @@ func lokiQuery(q Query) (string, string, error) {
 		}
 		window = fmt.Sprintf("%ds", secs)
 		eval = q.To.UTC().Format(time.RFC3339Nano)
+	case QueryAggregation:
+		if q.From.IsZero() || !q.From.Before(q.To) {
+			return "", "", fmt.Errorf("loki: aggregation window is empty")
+		}
+		secs := int(q.To.Sub(q.From).Seconds() + 0.999)
+		if secs < 1 {
+			secs = 1
+		}
+		eval = q.To.UTC().Format(time.RFC3339Nano)
+		logql := fmt.Sprintf(`sum(bytes_over_time({job="%s"}[%ds]))`, lokiJob, secs)
+		return logql, eval, nil
 	default:
 		return "", "", fmt.Errorf("loki: unknown query class %q", q.Class)
 	}
 	logql := fmt.Sprintf("sum(count_over_time(%s | keep job [%s]))", b.String(), window)
 	return logql, eval, nil
+}
+
+// Stored is the number of lines Loki has for the syscon-bench job.
+// An empty index is zero.
+func (l *Loki) Stored(ctx context.Context) (int64, error) {
+	u, err := endpointURL(l.endpoint, "/loki/api/v1/query")
+	if err != nil {
+		return 0, fmt.Errorf("loki: endpoint: %w", err)
+	}
+	vals := u.Query()
+	vals.Set("query", `sum(count_over_time({job="syscon-bench"}[24h]))`)
+	u.RawQuery = vals.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return 0, fmt.Errorf("loki: request: %w", err)
+	}
+	setAuth(req, l.user, l.pass)
+	status, body, err := call(l.client, req, true)
+	if err != nil {
+		return 0, fmt.Errorf("loki: %w", err)
+	}
+	if missingStore(status, body) {
+		return 0, nil
+	}
+	if !okStatus(status) {
+		return 0, httpStatusError("loki", status, body)
+	}
+	n, err := promVectorInt64(body)
+	if err != nil {
+		return 0, fmt.Errorf("loki: count: %w", err)
+	}
+	return n, nil
 }

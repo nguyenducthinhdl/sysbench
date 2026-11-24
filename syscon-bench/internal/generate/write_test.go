@@ -58,6 +58,58 @@ func TestWriteFile(t *testing.T) {
 	}
 }
 
+func TestWriteRowsUsesCatalogAndRepeats(t *testing.T) {
+	cat := &Catalog{
+		InstanceIDs: []string{"instance-0007"},
+		IPs:         []string{"10.1.2.3"},
+		Hosts:       []string{"host-0007"},
+		Services:    []string{"payments-0007"},
+		Messages:    []string{"paid #user-id"},
+	}
+	dir := t.TempDir()
+	first := dir + "/a.jsonl"
+	second := dir + "/b.jsonl"
+	res, err := WriteRows(first, 4, cat, 0, 0, 0, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Events != 4 || res.Bytes < 4 {
+		t.Fatalf("%+v", res)
+	}
+	if _, err := WriteRows(second, 4, cat, 0, 0, 0, 7); err != nil {
+		t.Fatal(err)
+	}
+	a, err := os.ReadFile(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(a) != string(b) {
+		t.Fatal("same seed rewrote a different file")
+	}
+	sc := bufio.NewScanner(strings.NewReader(string(a)))
+	n := 0
+	for sc.Scan() {
+		var ev storage.Event
+		if err := json.Unmarshal(sc.Bytes(), &ev); err != nil {
+			t.Fatal(err)
+		}
+		if ev.InstanceID != "instance-0007" || ev.IPAddress != "10.1.2.3" || ev.Service != "payments-0007" {
+			t.Fatalf("%+v", ev)
+		}
+		if !strings.Contains(ev.Message, "usr-") || strings.Contains(ev.Message, "#user-id") {
+			t.Fatalf("message %q", ev.Message)
+		}
+		n++
+	}
+	if n != 4 {
+		t.Fatalf("lines %d", n)
+	}
+}
+
 func TestWriteFileRejectsSize(t *testing.T) {
 	if _, err := WriteFile(t.TempDir()+"/x", 10, 10, 10, 0, 1); err == nil {
 		t.Fatal("expected size error")

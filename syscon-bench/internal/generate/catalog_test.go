@@ -23,6 +23,9 @@ func TestFieldsRoundTrip(t *testing.T) {
 	if len(cat.Services) != PoolSize || cat.Services[0] == cat.Services[1] {
 		t.Fatalf("services %d %q %q", len(cat.Services), cat.Services[0], cat.Services[1])
 	}
+	if cat.Services[0] == "users-0000" && cat.Services[1] == "payments-0001" {
+		t.Fatal("services are still sequential")
+	}
 	if cat.InstanceIDs[0] != "instance-0000" || cat.IPs[999] != "10.3.231.10" || cat.Hosts[7] != "host-0007" {
 		t.Fatalf("ends %+v", cat)
 	}
